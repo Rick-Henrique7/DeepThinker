@@ -5,7 +5,7 @@ on:
     branches: [ "main", "master" ]
     paths:
       - 'backend/**'
-      - '.github/workflows/tests.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [ "main", "master" ]
     paths:
@@ -15,7 +15,6 @@ jobs:
   laravel-tests:
     runs-on: ubuntu-latest
 
-    # Define que todas as tarefas devem rodar dentro da pasta backend/
     defaults:
       run:
         working-directory: ./backend
@@ -42,7 +41,7 @@ jobs:
     - name: Configurar ambiente PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.3'
+        php-version: '8.4'
         extensions: mbstring, dom, fileinfo, pdo, pdo_pgsql, pgsql
         coverage: none
 
