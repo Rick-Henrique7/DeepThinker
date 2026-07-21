@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('proprietarios', function (Blueprint $table) {
+        Schema::create('conversation_messages', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('note_id')->nullable()->constrained('notes')->onDelete('set null');
+            $table->enum('role', ['user', 'assistant', 'system']);
+            $table->text('content');
+            $table->string('audio_url')->nullable();
             $table->timestamps();
         });
     }
@@ -22,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('proprietarios');
+        Schema::dropIfExists('conversation_messages');
     }
 };

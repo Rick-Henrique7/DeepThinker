@@ -1,0 +1,75 @@
+name: Continuous Integration (Laravel & pgvector)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  laravel-tests:
+    runs-on: ubuntu-latest
+
+    # Define que todas as tarefas devem rodar dentro da pasta backend/
+    defaults:
+      run:
+        working-directory: ./backend
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: testing
+          POSTGRES_USER: sail
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout do código
+      uses: actions/checkout@v4
+
+    - name: Configurar ambiente PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.3'
+        extensions: mbstring, dom, fileinfo, pdo, pdo_pgsql, pgsql
+        coverage: none
+
+    - name: Instalar Dependências do Composer
+      run: composer install --prefer-dist --no-progress --no-suggest
+
+    - name: Configurar Arquivo .env e Gerar Key
+      run: |
+        cp .env.example .env
+        php artisan key:generate
+
+    - name: Rodar Migrations no PostgreSQL + pgvector
+      env:
+        DB_CONNECTION: pgsql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 5432
+        DB_DATABASE: testing
+        DB_USERNAME: sail
+        DB_PASSWORD: password
+      run: php artisan migrate --force
+
+    - name: Executar Suíte de Testes Automatizados
+      env:
+        DB_CONNECTION: pgsql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 5432
+        DB_DATABASE: testing
+        DB_USERNAME: sail
+        DB_PASSWORD: password
+      run: php artisan test
