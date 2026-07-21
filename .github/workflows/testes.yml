@@ -47,7 +47,7 @@ jobs:
         coverage: none
 
     - name: Instalar Dependências do Composer
-      run: composer install --prefer-dist --no-progress --no-suggest
+      run: composer install --prefer-dist --no-progress --ignore-platform-reqs
 
     - name: Configurar Arquivo .env e Gerar Key
       run: |
