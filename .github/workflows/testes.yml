@@ -45,15 +45,37 @@ jobs:
         extensions: mbstring, dom, fileinfo, pdo, pdo_pgsql, pgsql
         coverage: none
 
-    
+    - name: Verificar versão do PHP
+      run: php -v
 
-    - name: Instalar Dependências do Composer
-      run: composer install --prefer-dist --no-progress
+    - name: Instalar Dependências do Composer sem scripts
+      run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
 
     - name: Configurar Arquivo .env e Gerar Key
+      env:
+        APP_ENV: testing
+        APP_DEBUG: 'false'
+        DB_CONNECTION: pgsql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 5432
+        DB_DATABASE: testing
+        DB_USERNAME: sail
+        DB_PASSWORD: password
       run: |
         cp .env.example .env
         php artisan key:generate
+
+    - name: Executar Composer post-autoload scripts
+      env:
+        APP_ENV: testing
+        APP_DEBUG: 'false'
+        DB_CONNECTION: pgsql
+        DB_HOST: 127.0.0.1
+        DB_PORT: 5432
+        DB_DATABASE: testing
+        DB_USERNAME: sail
+        DB_PASSWORD: password
+      run: composer run-script post-autoload-dump --no-interaction
 
     - name: Rodar Migrations no PostgreSQL + pgvector
       env:
@@ -67,6 +89,8 @@ jobs:
 
     - name: Executar Suíte de Testes Automatizados
       env:
+        APP_ENV: testing
+        APP_DEBUG: 'false'
         DB_CONNECTION: pgsql
         DB_HOST: 127.0.0.1
         DB_PORT: 5432
