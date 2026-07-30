@@ -45,11 +45,7 @@ jobs:
         extensions: mbstring, dom, fileinfo, pdo, pdo_pgsql, pgsql
         coverage: none
 
-    - name: Verificar versão do PHP e Composer
-      run: |
-        php -v
-        which php
-        composer -V
+    
 
     - name: Instalar Dependências do Composer
       run: composer install --prefer-dist --no-progress
