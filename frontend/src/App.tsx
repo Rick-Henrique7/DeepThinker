@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ThoughtInput } from './components/ThoughtInput';
 import { KnowledgeGraph, NodeItem, LinkItem } from './components/KnowledgeGraph';
+import { NoteDrawer } from './components/NoteDrawer';
 
 export function App() {
   const [loading, setLoading] = useState(false);
   const [nodes, setNodes] = useState<NodeItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [selectedNote, setSelectedNote] = useState<NodeItem | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
 
   // Busca dados atualizados do Grafo do Laravel
   const fetchGraphData = async () => {
@@ -25,6 +26,41 @@ export function App() {
   useEffect(() => {
     fetchGraphData();
   }, []);
+
+  const handleUpdateNote = async (id: number, title: string, content: string) => {
+    try {
+      const response = await fetch(`http://localhost/api/notes/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title, content }),
+      });
+
+      if (response.ok) {
+        await fetchGraphData();
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar nota:', err);
+    }
+  };
+
+  const handleDeleteNote = async (id: number) => {
+    if (!confirm('Deseja realmente excluir esta nota?')) return;
+
+    try {
+      const response = await fetch(`http://localhost/api/notes/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        setSelectedNoteId(null);
+        await fetchGraphData();
+      }
+    } catch (err) {
+      console.error('Erro ao excluir nota:', err);
+    }
+  };
 
   const handleSaveThought = async (title: string, content: string) => {
     setLoading(true);
@@ -74,10 +110,18 @@ export function App() {
           <KnowledgeGraph
             nodes={nodes}
             links={links}
-            onSelectNode={(node) => setSelectedNote(node)}
+            onSelectNode={(node) => setSelectedNoteId(node.id)}
           />
         </div>
       </main>
+
+      {/* Drawer com Detalhes da Nota ao clicar no Nó */}
+      <NoteDrawer
+        noteId={selectedNoteId}
+        onClose={() => setSelectedNoteId(null)}
+        onUpdateNote={handleUpdateNote}
+        onDeleteNote={handleDeleteNote}
+      />
     </div>
   );
 }

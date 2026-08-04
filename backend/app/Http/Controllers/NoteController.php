@@ -21,10 +21,7 @@ class NoteController extends Controller
         return response()->json($notes);
     }
 
-    /**
-     * Endpoint leve consumido pelo n8n: devolve apenas títulos e IDs
-     * para alimentar a IA com o contexto de notas existentes.
-     */
+    
     public function titles(): JsonResponse
     {
         $titles = Note::select('id', 'title')->get();
@@ -32,10 +29,6 @@ class NoteController extends Controller
         return response()->json($titles);
     }
 
-    /**
-     * Endpoint consumido pelo React: Devolve a estrutura de Nó (Nodes)
-     * e Arestas (Links) para renderizar o Grafo de Conhecimento.
-     */
     public function graph(): JsonResponse
     {
         // 1. Busca todos os Nós (Notas)
@@ -54,9 +47,7 @@ class NoteController extends Controller
         ]);
     }
 
-    /**
-     * Cria uma nova nota (Pode ser chamado tanto pelo React quanto pelo n8n).
-     */
+   
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -71,14 +62,34 @@ class NoteController extends Controller
         return response()->json($note, 201);
     }
 
-    /**
-     * Exibe o conteúdo detalhado de uma nota específica.
-     */
     public function show(Note $note): JsonResponse
     {
         // Carrega também quais notas ela cita (connectedNotes)
         $note->load('connectedNotes');
 
         return response()->json($note);
+    }
+
+    public function update(Request $request, Note $note): JsonResponse
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255|unique:notes,title,' . $note->id,
+            'content' => 'nullable|string',
+            'summary' => 'nullable|string',
+        ]);
+
+        $note->update($validated);
+
+        return response()->json($note);
+    }
+
+    public function destroy(Note $note): JsonResponse
+    {
+        // Remove conexões relacionadas antes de excluir a nota
+        $note->outgoingConnections()->delete();
+        $note->incomingConnections()->delete();
+        $note->delete();
+
+        return response()->json(['message' => 'Nota excluída com sucesso.']);
     }
 }

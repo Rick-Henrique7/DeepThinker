@@ -12,6 +12,8 @@ Route::get('/notes', [NoteController::class, 'index']);
 Route::post('/notes', [NoteController::class, 'store']);
 Route::get('/notes/titles', [NoteController::class, 'titles']); // Rota leve para o n8n
 Route::get('/notes/{note}', [NoteController::class, 'show']);
+Route::put('/notes/{note}', [NoteController::class, 'update']);
+Route::delete('/notes/{note}', [NoteController::class, 'destroy']);
 Route::get('/graph', [NoteController::class, 'graphData']);
 
 // Endpoint exclusivo para o Grafo (React)

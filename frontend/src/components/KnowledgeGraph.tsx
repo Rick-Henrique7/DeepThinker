@@ -110,17 +110,22 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
       .attr('stroke-width', 2)
       .attr('class', 'transition-all duration-200 hover:scale-125');
 
-    // Adiciona o Título da Nota
+    // Rótulos de Texto (Posicionados ACIMA do Nó)
     node
       .append('text')
       .text((d) => d.title)
-      .attr('x', 12)
-      .attr('y', 4)
-      .attr('fill', '#e2e8f0')
+      .attr('x', 0)                  // Centraliza horizontalmente em relação ao nó
+      .attr('y', -16)                // Move o texto para CIMA da bolinha (como o raio é 10px, -16px dá um respiro perfeito)
+      .attr('text-anchor', 'middle') // Garante que a palavra fique centralizada
+      .attr('fill', '#f8fafc')
       .attr('font-size', '12px')
-      .attr('font-weight', '500')
+      .attr('font-weight', '600')
       .attr('pointer-events', 'none')
-      .attr('class', 'select-none shadow-sm');
+      // Dica de Ouro: Adiciona um contorno escuro para o texto não embolar com as linhas de conexão do fundo
+      .style('paint-order', 'stroke fill')
+      .style('stroke', '#0f172a')
+      .style('stroke-width', '3px')
+      .style('stroke-linejoin', 'round');
 
     // Eventos de Clique no Nó
     node.on('click', (event, d) => {
