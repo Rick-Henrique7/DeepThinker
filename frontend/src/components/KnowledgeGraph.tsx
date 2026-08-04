@@ -118,7 +118,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
       .attr('y', -16)                // Move o texto para CIMA da bolinha (como o raio é 10px, -16px dá um respiro perfeito)
       .attr('text-anchor', 'middle') // Garante que a palavra fique centralizada
       .attr('fill', '#f8fafc')
-      .attr('font-size', '12px')
+      .attr('font-size', '10px')
       .attr('font-weight', '600')
       .attr('pointer-events', 'none')
       // Dica de Ouro: Adiciona um contorno escuro para o texto não embolar com as linhas de conexão do fundo

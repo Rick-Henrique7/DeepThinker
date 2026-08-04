@@ -14,7 +14,6 @@ Route::get('/notes/titles', [NoteController::class, 'titles']); // Rota leve par
 Route::get('/notes/{note}', [NoteController::class, 'show']);
 Route::put('/notes/{note}', [NoteController::class, 'update']);
 Route::delete('/notes/{note}', [NoteController::class, 'destroy']);
-Route::get('/graph', [NoteController::class, 'graphData']);
 
 // Endpoint exclusivo para o Grafo (React)
 Route::get('/graph', [NoteController::class, 'graph']);

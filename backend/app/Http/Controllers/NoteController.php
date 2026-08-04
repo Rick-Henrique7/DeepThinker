@@ -32,7 +32,7 @@ class NoteController extends Controller
     public function graph(): JsonResponse
     {
         // 1. Busca todos os Nós (Notas)
-        $nodes = Note::select('id', 'title as label')->get();
+        $nodes = Note::select('id', 'title')->get();
 
         // 2. Busca todas as Arestas (Conexões entre notas)
         $links = Connection::select(
