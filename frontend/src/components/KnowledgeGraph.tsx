@@ -70,8 +70,8 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     // Renderiza os Links (Linhas do Grafo)
     const link = g
       .append('g')
-      .attr('stroke', '#475569')
-      .attr('stroke-opacity', 0.6)
+      .attr('stroke', '#404040')
+      .attr('stroke-opacity', 0.7)
       .selectAll('line')
       .data(linksCopy)
       .join('line')
@@ -102,29 +102,28 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
           })
       );
 
-    // Adiciona o Círculo Neon no Nó
+    // Adiciona o Círculo no Nó (paleta neutra)
     node
       .append('circle')
       .attr('r', 8)
-      .attr('fill', (d) => (d.id === selectedNodeId ? '#818cf8' : '#6366f1'))
-      .attr('stroke', '#312e81')
+      .attr('fill', (d) => (d.id === selectedNodeId ? '#ffffff' : '#a3a3a3'))
+      .attr('stroke', '#000000')
       .attr('stroke-width', 2)
       .attr('class', 'transition-all duration-200 hover:scale-125');
 
-    // Rótulos de Texto (Posicionados ACIMA do Nó)
+    // Rótulos de Texto
     node
       .append('text')
       .text((d) => d.title)
-      .attr('x', 0)                  // Centraliza horizontalmente em relação ao nó
-      .attr('y', -16)                // Move o texto para CIMA da bolinha (como o raio é 10px, -16px dá um respiro perfeito)
-      .attr('text-anchor', 'middle') // Garante que a palavra fique centralizada
-      .attr('fill', '#f8fafc')
+      .attr('x', 0)
+      .attr('y', -16)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#ffffff')
       .attr('font-size', '10px')
       .attr('font-weight', '600')
       .attr('pointer-events', 'none')
-      // Dica de Ouro: Adiciona um contorno escuro para o texto não embolar com as linhas de conexão do fundo
       .style('paint-order', 'stroke fill')
-      .style('stroke', '#0f172a')
+      .style('stroke', '#000000')
       .style('stroke-width', '3px')
       .style('stroke-linejoin', 'round');
 
@@ -153,22 +152,21 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[60vh] sm:h-[550px] bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl touch-none"
+      className="relative w-full h-[55vh] sm:h-[60vh] md:h-[65vh] lg:h-[70vh] min-h-[320px] max-h-[800px] bg-neutral-950 border border-neutral-900 rounded-2xl overflow-hidden touch-none"
     >
       {nodes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm">
+        <div className="flex flex-col items-center justify-center h-full text-neutral-500 text-sm">
           <p>Nenhuma nota encontrada no grafo.</p>
-          <p className="text-xs text-slate-600 mt-1">
-            Crie novos pensamentos usando tags [[Nome da Nota]] para conectar.
+          <p className="text-xs text-neutral-600 mt-1">
+            Crie pensamentos usando [[Título da Nota]] para conectar.
           </p>
         </div>
       ) : (
         <svg ref={svgRef} className="w-full h-full" />
       )}
 
-      {/* Legenda Flutuante — escondida em mobile pra não poluir */}
-      <div className="absolute top-3 left-3 hidden sm:block bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs text-slate-400">
-        💡 Arraste as bolinhas ou dê zoom com o scroll
+      <div className="absolute top-3 left-3 hidden md:block bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-xs text-neutral-400 border border-neutral-800">
+        Arraste ou dê zoom
       </div>
     </div>
   );

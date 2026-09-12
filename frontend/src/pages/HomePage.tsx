@@ -49,7 +49,7 @@ export function HomePage() {
       setFeedback({
         ok: true,
         title: r.note.title,
-        message: `${file.name} processado (${r.extracted_chars} caracteres). Notas criadas: ${r.created}, reaproveitadas: ${r.reused}.`,
+        message: `${file.name} processado (${r.extracted_chars} caracteres). Criadas: ${r.created}, reaproveitadas: ${r.reused}.`,
       });
     } catch (err) {
       setFeedback({
@@ -64,76 +64,67 @@ export function HomePage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
-      {/* Hero: pensamento */}
+    <div className="max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto space-y-5 sm:space-y-6 lg:space-y-8">
+      {/* Hero */}
       <section>
         <ThoughtInput onSubmitThought={handleSaveThought} isLoading={loading} />
       </section>
 
-      {/* Ações secundárias em grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-        {/* Grafo */}
-        <Link
-          to="/grafo"
-          className="group flex items-center gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4 transition-all hover:border-indigo-500/50 hover:bg-slate-900"
-        >
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-400">
-            <Network className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-200">Ver Grafo</div>
-            <div className="text-xs text-slate-500 truncate">Notas conectadas</div>
-          </div>
-          <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
-        </Link>
+      {/* Ações secundárias — estilo iOS list */}
+      <section className="space-y-2">
+        <h2 className="text-xs uppercase tracking-wider text-neutral-500 font-medium px-1">
+          Atalhos
+        </h2>
+        <div className="rounded-2xl bg-neutral-900 border border-neutral-800 divide-y divide-neutral-800 overflow-hidden">
+          <Link
+            to="/grafo"
+            className="group flex items-center gap-3 p-3 sm:p-4 hover:bg-neutral-800/50 transition-colors"
+          >
+            <Network className="h-5 w-5 text-neutral-400 group-hover:text-white transition-colors flex-shrink-0" strokeWidth={1.75} />
+            <span className="flex-1 text-sm sm:text-base text-white">Grafo de Conhecimento</span>
+            <ArrowRight className="h-4 w-4 text-neutral-500 group-hover:text-white transition-colors flex-shrink-0" />
+          </Link>
 
-        {/* Advogado do Diabo */}
-        <Link
-          to="/advogado"
-          className="group flex items-center gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4 transition-all hover:border-purple-500/50 hover:bg-slate-900"
-        >
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-purple-500/15 text-purple-400">
-            <MessageSquare className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-200">Advogado</div>
-            <div className="text-xs text-slate-500 truncate">Chat com IA local</div>
-          </div>
-          <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-purple-400 transition-colors flex-shrink-0" />
-        </Link>
+          <Link
+            to="/advogado"
+            className="group flex items-center gap-3 p-3 sm:p-4 hover:bg-neutral-800/50 transition-colors"
+          >
+            <MessageSquare className="h-5 w-5 text-neutral-400 group-hover:text-white transition-colors flex-shrink-0" strokeWidth={1.75} />
+            <span className="flex-1 text-sm sm:text-base text-white">Advogado do Diabo</span>
+            <ArrowRight className="h-4 w-4 text-neutral-500 group-hover:text-white transition-colors flex-shrink-0" />
+          </Link>
 
-        {/* Upload de documento */}
-        <button
-          onClick={handleUploadClick}
-          disabled={uploadBusy}
-          className="group flex items-center gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/50 p-4 text-left transition-all hover:border-emerald-500/50 hover:bg-slate-900 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400">
-            {uploadBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileUp className="h-5 w-5" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-slate-200">
-              {uploadBusy ? 'Enviando...' : 'Importar'}
-            </div>
-            <div className="text-xs text-slate-500 truncate">PDF, TXT ou MD</div>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.txt,.md"
-            onChange={handleUpload}
-            className="hidden"
-          />
-        </button>
+          <button
+            onClick={handleUploadClick}
+            disabled={uploadBusy}
+            className="group w-full flex items-center gap-3 p-3 sm:p-4 text-left hover:bg-neutral-800/50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {uploadBusy ? (
+              <Loader2 className="h-5 w-5 text-neutral-400 animate-spin flex-shrink-0" />
+            ) : (
+              <FileUp className="h-5 w-5 text-neutral-400 group-hover:text-white transition-colors flex-shrink-0" strokeWidth={1.75} />
+            )}
+            <span className="flex-1 text-sm sm:text-base text-white">
+              {uploadBusy ? 'Enviando...' : 'Importar Documento'}
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              onChange={handleUpload}
+              className="hidden"
+            />
+          </button>
+        </div>
       </section>
 
-      {/* Feedback do upload */}
+      {/* Feedback */}
       {feedback && (
         <section
-          className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${
+          className={`flex items-start gap-3 rounded-2xl border p-3 text-sm ${
             feedback.ok
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-              : 'border-red-500/30 bg-red-500/10 text-red-300'
+              ? 'border-emerald-700/40 bg-emerald-950/30 text-emerald-300'
+              : 'border-red-700/40 bg-red-950/30 text-red-300'
           }`}
         >
           {feedback.ok ? (
@@ -143,11 +134,11 @@ export function HomePage() {
           )}
           <div className="flex-1 min-w-0">
             <div className="font-medium">{feedback.title}</div>
-            <div className="text-xs opacity-90">{feedback.message}</div>
+            <div className="text-xs opacity-80 mt-0.5">{feedback.message}</div>
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="opacity-60 hover:opacity-100 text-xs"
+            className="opacity-60 hover:opacity-100 text-lg leading-none"
             aria-label="Fechar"
           >
             ×

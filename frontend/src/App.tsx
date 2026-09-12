@@ -8,9 +8,9 @@ import { AdvogadoPage } from './pages/AdvogadoPage';
 
 function Shell() {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+    <div className="min-h-screen flex flex-col bg-black text-neutral-100">
       <Header />
-      <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6 pb-20 sm:pb-6">
+      <main className="flex-1 px-3 py-3 sm:px-5 sm:py-5 md:px-6 md:py-6 lg:py-8 pb-28 lg:pb-8">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/grafo" element={<GraphPage />} />

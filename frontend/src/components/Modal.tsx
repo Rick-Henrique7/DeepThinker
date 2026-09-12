@@ -32,15 +32,15 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
     >
       <div
-        className={`w-full ${sizes[size]} bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl shadow-black/50`}
+        className={`w-full ${sizes[size]} bg-neutral-950 border border-neutral-900 rounded-2xl shadow-2xl shadow-black/50`}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-4">
-            <h3 className="text-base font-semibold text-slate-100">{title}</h3>
+          <div className="flex items-center justify-between border-b border-neutral-900 px-5 py-4">
+            <h3 className="text-base font-semibold text-white">{title}</h3>
             <button
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-slate-100 rounded-lg transition-colors"
+              className="p-1 text-neutral-500 hover:text-white rounded-lg transition-colors"
               aria-label="Fechar"
             >
               <X className="w-5 h-5" />
@@ -76,20 +76,20 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 }) => {
   return (
     <Modal open={open} onClose={onCancel} title={title} size="sm">
-      <p className="text-sm text-slate-300 leading-relaxed mb-5">{message}</p>
+      <p className="text-sm text-neutral-300 leading-relaxed mb-5">{message}</p>
       <div className="flex justify-end gap-2">
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-sm rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors"
+          className="px-4 py-2 text-sm rounded-full border border-neutral-800 text-neutral-300 hover:bg-neutral-900 transition-colors"
         >
           {cancelText}
         </button>
         <button
           onClick={onConfirm}
-          className={`px-4 py-2 text-sm rounded-xl text-white shadow-lg transition-colors ${
+          className={`px-4 py-2 text-sm rounded-full text-black shadow-lg transition-colors ${
             variant === 'danger'
-              ? 'bg-red-600 hover:bg-red-500 shadow-red-600/25'
-              : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/25'
+              ? 'bg-red-500 hover:bg-red-400'
+              : 'bg-white hover:bg-neutral-200'
           }`}
         >
           {confirmText}

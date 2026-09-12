@@ -43,9 +43,9 @@ export function GraphPage() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto space-y-3 sm:space-y-5">
       <div className="space-y-2">
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider px-1">
+        <h2 className="text-xs uppercase tracking-wider text-neutral-500 font-medium px-1">
           Grafo de Conhecimento
         </h2>
         <KnowledgeGraph

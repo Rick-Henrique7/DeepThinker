@@ -7,9 +7,10 @@ interface HeaderProps {
 }
 
 /**
- * Header fixo com navegação primária (3 páginas) + status do LLM local.
- * No mobile, a nav primária é ocultada — ela aparece como bottom nav (BottomNav).
- * No desktop (sm:), o header mostra a nav completa.
+ * Header fixo — minimalista iOS-style.
+ * - Mobile (<lg): so logo + LLM indicator
+ * - Tablet+ (lg): adiciona nav inline (3 itens)
+ * BottomNav cuida do resto no mobile+tablet.
  */
 export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
   const [llmOnline, setLlmOnline] = useState<boolean | null>(null);
@@ -35,32 +36,24 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
 
   const navItemClass = ({ isActive }: { isActive: boolean }) =>
     [
-      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+      'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
       isActive
-        ? 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/40'
-        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent',
+        ? 'bg-white text-black'
+        : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60',
     ].join(' ');
 
   return (
-    <header
-      className={`sticky top-0 z-40 backdrop-blur-md bg-slate-950/85 border-b border-slate-800/80 ${className}`}
-    >
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2">
+    <header className={`sticky top-0 z-40 bg-black/85 backdrop-blur-xl border-b border-neutral-900 ${className}`}>
+      <div className="max-w-6xl mx-auto px-3 sm:px-5 lg:px-6 h-12 sm:h-14 flex items-center justify-between gap-2 sm:gap-3">
         {/* Logo */}
-        <NavLink to="/" className="flex items-center gap-2 group min-w-0">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/30">
-            <Brain className="h-4 w-4" />
-          </div>
-          <div className="flex flex-col leading-tight min-w-0">
-            <span className="text-base font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 truncate">
-              DeepThinker
-            </span>
-            <span className="text-[10px] text-slate-500 hidden sm:block">Segundo Cérebro</span>
-          </div>
+        <NavLink to="/" className="flex items-center gap-2 min-w-0 flex-shrink-0">
+          <span className="text-base sm:text-lg lg:text-xl font-bold text-white tracking-tight truncate">
+            DeepThinker
+          </span>
         </NavLink>
 
-        {/* Nav desktop (>=sm) */}
-        <nav className="hidden sm:flex items-center gap-1">
+        {/* Nav desktop+tablet (>=lg) */}
+        <nav className="hidden lg:flex items-center gap-1">
           <NavLink to="/" end className={navItemClass}>
             <Brain className="h-4 w-4" />
             Pensar
@@ -77,12 +70,12 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
 
         {/* Status LLM */}
         <div
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border flex-shrink-0 ${
+          className={`flex items-center gap-1.5 text-xs flex-shrink-0 ${
             llmOnline === null
-              ? 'border-slate-700 text-slate-500'
+              ? 'text-neutral-600'
               : llmOnline
-              ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
-              : 'border-red-500/40 text-red-300 bg-red-500/10'
+              ? 'text-neutral-400'
+              : 'text-neutral-500'
           }`}
           title={
             llmOnline === null
@@ -93,16 +86,16 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
           }
         >
           <Circle
-            className={`h-2 w-2 ${
+            className={`h-1.5 w-1.5 ${
               llmOnline === null
-                ? 'text-slate-500'
+                ? 'fill-neutral-600 text-neutral-600'
                 : llmOnline
-                ? 'fill-emerald-400 text-emerald-400'
-                : 'fill-red-400 text-red-400'
+                ? 'fill-emerald-500 text-emerald-500'
+                : 'fill-neutral-500 text-neutral-500'
             }`}
           />
           <span className="hidden sm:inline">
-            {llmOnline === null ? '...' : llmOnline ? 'LLM ok' : 'LLM off'}
+            {llmOnline === null ? '...' : llmOnline ? 'LLM' : 'off'}
           </span>
         </div>
       </div>
