@@ -8,7 +8,8 @@ interface HeaderProps {
 
 /**
  * Header fixo com navegação primária (3 páginas) + status do LLM local.
- * Substitui os antigos botões flutuantes (TopRightNav + DevilsAdvocateButton).
+ * No mobile, a nav primária é ocultada — ela aparece como bottom nav (BottomNav).
+ * No desktop (sm:), o header mostra a nav completa.
  */
 export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
   const [llmOnline, setLlmOnline] = useState<boolean | null>(null);
@@ -42,41 +43,41 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
 
   return (
     <header
-      className={`sticky top-0 z-40 backdrop-blur-md bg-slate-950/80 border-b border-slate-800/80 ${className}`}
+      className={`sticky top-0 z-40 backdrop-blur-md bg-slate-950/85 border-b border-slate-800/80 ${className}`}
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2">
         {/* Logo */}
-        <NavLink to="/" className="flex items-center gap-2 group">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/30">
+        <NavLink to="/" className="flex items-center gap-2 group min-w-0">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/30">
             <Brain className="h-4 w-4" />
           </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-base font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+          <div className="flex flex-col leading-tight min-w-0">
+            <span className="text-base font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 truncate">
               DeepThinker
             </span>
             <span className="text-[10px] text-slate-500 hidden sm:block">Segundo Cérebro</span>
           </div>
         </NavLink>
 
-        {/* Nav primária */}
-        <nav className="flex items-center gap-1">
+        {/* Nav desktop (>=sm) */}
+        <nav className="hidden sm:flex items-center gap-1">
           <NavLink to="/" end className={navItemClass}>
             <Brain className="h-4 w-4" />
-            <span className="hidden sm:inline">Pensar</span>
+            Pensar
           </NavLink>
           <NavLink to="/grafo" className={navItemClass}>
             <Network className="h-4 w-4" />
-            <span className="hidden sm:inline">Grafo</span>
+            Grafo
           </NavLink>
           <NavLink to="/advogado" className={navItemClass}>
             <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">Advogado</span>
+            Advogado
           </NavLink>
         </nav>
 
         {/* Status LLM */}
         <div
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border ${
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border flex-shrink-0 ${
             llmOnline === null
               ? 'border-slate-700 text-slate-500'
               : llmOnline

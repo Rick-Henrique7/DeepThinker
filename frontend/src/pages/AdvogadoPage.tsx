@@ -185,7 +185,7 @@ export function AdvogadoPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)] max-w-4xl mx-auto">
+    <div className="flex flex-col h-[calc(100vh-7rem)] sm:h-[calc(100vh-4rem)] max-w-4xl mx-auto">
       {/* Topo: seletor de modo + ações */}
       <div className="px-1 sm:px-0 pt-3 pb-3 border-b border-slate-800 space-y-2">
         <div className="flex items-center justify-between gap-2">
