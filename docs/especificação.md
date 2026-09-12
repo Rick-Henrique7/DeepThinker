@@ -1,12 +1,17 @@
 ---
-title: VectorLink — Sistema de Telemetria e Concessão de Crédito
+title: DeepThinker — Sistema de Segundo Cérebro (PKM)
 subtitle: Especificação de Requisitos de Software (SRS)
-date: Julho 2026
+date: Setembro 2026
 ---
 
 # Especificação de Requisitos de Software (SRS)
 
-## Projeto: VectorLink — Sistema de Telemetria e Concessão de Crédito
+## Projeto: DeepThinker — Segundo Cérebro Visual
+
+> **Histórico:** Este documento foi herdado do projeto VectorLink (gestão de
+> crédito agrícola). O projeto evoluiu para um sistema de **Gestão do
+> Conhecimento Pessoal (PKM)** com grafo de notas interconectadas e
+> assistente de IA. Esta versão descreve o estado real do software.
 
 ---
 
@@ -14,165 +19,180 @@ date: Julho 2026
 
 ### 1.1 Propósito
 
-Este documento especifica os requisitos de software para o sistema **VectorLink**. O objetivo é definir formalmente as funcionalidades, restrições e interações de dados para a criação de um ecossistema desacoplado que gerencia frotas agrícolas e analisa solicitações de crédito financeiro com base em telemetria.
+Este documento especifica os requisitos de software para o sistema **DeepThinker**. O objetivo é definir formalmente as funcionalidades, restrições e interações de dados para uma aplicação web que ajuda o usuário a capturar, conectar e refletir sobre suas ideias através de um grafo de conhecimento e de um assistente de IA local.
 
 ### 1.2 Escopo do Sistema
 
-O VectorLink consiste em duas aplicações operando de forma autônoma:
+O DeepThinker consiste em duas aplicações operando de forma desacoplada:
 
-- **VectorLink API (Backend):** Engine construída em Laravel que processa regras de negócio, gerencia o estado no banco de dados e expõe endpoints REST protegidos.
+- **DeepThinker API (Backend):** Engine construída em Laravel (PHP 8.3+) que processa regras de negócio, gerencia o estado no banco SQLite local e expõe endpoints REST. Integra-se com um servidor de LLM local via API compatível com OpenAI (LM Studio).
 
-- **VectorLink Dashboard (Frontend):** Interface de usuário construída em React + TypeScript para consumo da API.
-
----
-
-## 2. Descrição Geral
-
-### 2.1 Perspectiva do Produto
-
-O sistema opera sob o modelo *API-First*. O frontend não possui conhecimento direto sobre as camadas de banco de dados, comunicando-se estritamente através do protocolo HTTP/HTTPS utilizando payloads no formato JSON.
+- **DeepThinker Web (Frontend):** Interface SPA construída em React + TypeScript + Vite + TailwindCSS, com visualização de grafo via D3.js.
 
 ```
 ┌────────────────────────┐                 ┌─────────────────────────┐
-│   VectorLink Dashboard │   HTTP (JSON)   │     VectorLink API      │
-│      (React + TSX)     │◄──────────────►│       (Laravel)         │
-└────────────────────────┘                 └───────────┬─────────────┘
-                                                        │
-                                                        │ SQL
-                                                        ▼
-                                           ┌────────────┴─────────────┐
-                                           │    Banco PostgreSQL      │
-                                           └──────────────────────────┘
+│   DeepThinker Web      │   HTTP/JSON     │    DeepThinker API      │
+│   (React + TSX)        │◄──────────────►│       (Laravel)         │
+│   - mobile-first       │                 │   - SQLite local        │
+│   - D3.js knowledge    │                 │   - LLM local via HTTP  │
+│     graph              │                 └───────────┬─────────────┘
+└────────────────────────┘                             │
+                                                      │ HTTP
+                                                      ▼
+                                          ┌───────────────────────────┐
+                                          │  LM Studio (OpenAI-compat)│
+                                          │  http://localhost:1234/v1 │
+                                          └───────────────────────────┘
 ```
 
-### 2.2 Restrições de Design e Implementação
+### 1.3 Restrições de Design e Implementação
 
-- **Ambiente local:** O backend e o banco de dados PostgreSQL devem obrigatoriamente rodar conteinerizados via Docker (Laravel Sail).
-
-- **Tipagem:** O frontend deve impor tipagem estrita via TypeScript, proibindo o uso do tipo genérico `any` para respostas de rede.
-
----
-
-## 3. Requisitos de Sistema
-
-### 3.1 Requisitos Funcionais (RF)
+- **Mobile-first:** O frontend deve funcionar primariamente em navegadores mobile (PWA-style responsivo), e em desktop como melhoria.
+- **Sem dependências cloud:** O backend roda localmente com PHP 8.3+ e SQLite. O LLM roda localmente via LM Studio. Nenhum serviço externo é necessário.
+- **Tipagem estrita:** TypeScript com `strict: true` no frontend. Backend com tipos PHPdoc quando aplicável.
 
 ---
 
-#### [RF-001] Cadastro de Produtores Rurais
+## 2. Requisitos de Sistema
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | O sistema deve persistir e gerenciar os dados dos clientes  |
-|                 | proponentes de crédito.                                     |
-| **Campos obrigatórios** | Nome Completo, CPF ou CNPJ (único), Localização      |
-|                 | (Cidade/UF) e Limite de Crédito Base (Decimal).             |
-| **Regra de Validação** | O backend deve rejeitar requisições com documentos    |
-|                 | (CPF/CNPJ) inválidos ou duplicados.                         |
+### 2.1 Requisitos Funcionais (RF)
 
----
+#### [RF-001] Notas (CRUD)
 
-#### [RF-002] Gestão de Inventário de Maquinário Agrícola
+| Campo | Detalhe |
+|---|---|
+| **Descrição** | O sistema deve persistir e gerenciar notas (ideias, pensamentos, links, documentos). |
+| **Campos** | `id`, `title` (único), `content`, `summary`, `embedding` (reservado p/ futuro), `created_at`, `updated_at` |
+| **Endpoints** | `GET/POST /api/notes`, `GET/PUT/DELETE /api/notes/{id}` |
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | Permite associar equipamentos ativos ao perfil de um        |
-|                 | Produtor Rural.                                             |
-| **Campos obrigatórios** | ID do Proprietário (FK), Modelo, Número de Série   |
-|                 | (Único), Tipo (Trator, Colheitadeira, Pulverizador) e       |
-|                 | Ano de Fabricação.                                          |
+#### [RF-002] Conexões via Wiki-Links
 
----
+| Campo | Detalhe |
+|---|---|
+| **Descrição** | O usuário pode referenciar outras notas dentro do `content` usando a sintaxe `[[Título da Nota]]`. Ao salvar, o backend cria automaticamente uma `Connection` da nota atual para a nota referenciada. |
+| **Algoritmo** | Observer dispara em `saved`. Regex captura `[[...]]`. Lookup via `whereIn('title', ...)` em batch. |
+| **Comportamento** | Remover o link do conteúdo também remove a conexão (sincronização). |
 
-#### [RF-003] Ingestão de Dados de Telemetria (Simulada)
+#### [RF-003] Grafo de Conhecimento
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | Endpoint público/interno que recebe estados operacionais    |
-|                 | periódicos das máquinas cadastradas.                        |
-| **Campos obrigatórios** | ID da Máquina (FK), Horas de Motor Acumuladas,     |
-|                 | Consumo de Combustível (L/h) e Nível de Alerta Mecânico     |
-|                 | (Enum: `LOW`, `MEDIUM`, `CRITICAL`).                        |
+| Campo | Detalhe |
+|---|---|
+| **Descrição** | Endpoint `GET /api/graph` retorna `{nodes, links}` para renderização D3.js no frontend. |
+| **Render** | Visualização interativa com física (force-directed), zoom, drag, clique para abrir drawer. |
 
----
+#### [RF-004] Assistente "Advogado do Diabo" (IA)
 
-#### [RF-004] Motor de Análise Automatizada de Crédito (Regra de Negócio)
+| Campo | Detalhe |
+|---|---|
+| **Descrição** | Sidebar lateral retrátil com chat que conversa com o usuário usando um LLM local. |
+| **Modos** | Três modos: **Socrático** (faz perguntas), **Crítico** (encontra falhas), **Brainstorm** (gera alternativas). Selecionável via UI. |
+| **Streaming** | Resposta do LLM é streama via SSE em `POST /api/chat/stream`. |
+| **Histórico** | Mensagens podem ser persistidas via `POST /api/conversations` para consulta futura. |
+| **Contexto** | Estimativa de tokens do lado do cliente. Quando a janela é excedida, mensagens antigas são truncadas e um modal avisa o usuário. |
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | O sistema deve processar pedidos de financiamento cruzando  |
-|                 | dados cadastrais com dados telemétricos.                    |
+#### [RF-005] "Criar Resumo" da Conversa
 
-**Regras de Negócio Fundamentais (RN):**
+| Campo | Detalhe |
+|---|---|
+| **Descrição** | Botão no rodapé do chat dispara modal de confirmação. Ao confirmar, o backend envia a conversa ao LLM com prompt estruturado para extrair JSON com `title`, `summary` e `key_points[]`. |
+| **Algoritmo de reuso** | Antes de criar novas notas, o backend consulta todas as notas existentes e monta um **hashmap de títulos normalizados** (lowercase + remoção de acentos). O prompt instrui o LLM a usar títulos exatos quando um ponto-chave coincide com uma chave existente. **Complexidade O(N)** em vez de O(N²). |
+| **Linkagem** | Cada `key_point` vira uma nota (nova ou reusada), com `Connection` automática da nota-resumo para cada uma. |
 
-- **RN-01 (Bloqueio por Risco):** Se o maquinário do produtor possuir qualquer alerta `CRITICAL` ativo nas últimas 48 horas de telemetria, o pedido de crédito é marcado automaticamente como "Revisão Manual".
+#### [RF-006] Upload de Documentos
 
-- **RN-02 (Cálculo de Capacidade):** O valor máximo do crédito pré-aprovado não pode exceder 50% do `Limite de Crédito Base` se a média de horas de uso da frota atual for inferior a 100 horas/mês (indício de subutilização do maquinário).
+| Campo | Detalhe |
+|---|---|
+| **Descrição** | Usuário pode anexar PDF, TXT ou MD pela sidebar. Backend extrai texto (smalot/pdfparser), gera resumo via LLM e cria nota linkada ao grafo seguindo o mesmo algoritmo de reuso de chaves. |
+| **Endpoint** | `POST /api/documents/upload` (multipart). Limite: 10 MB. |
+| **Fallback** | Se o JSON estruturado falhar, salva o conteúdo bruto como nota sem parsing. |
 
----
+### 2.2 Requisitos Não Funcionais (RNF)
 
-### 3.2 Requisitos Não Funcionais (RNF)
+#### [RNF-001] Mobile-First Responsivo
 
----
+- Layout fluido (`min-h-screen` em vez de `h-screen`)
+- Breakpoints `sm:` e `md:` do Tailwind
+- Drawer full-screen em mobile, side-panel em desktop
+- Touch/pinch-zoom no grafo (futuro)
 
-#### [RNF-001] Segurança e Isolamento (CORS)
+#### [RNF-002] CORS
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | A API deve implementar um middleware de segurança que       |
-|                 | bloqueie requisições de origens que não sejam               |
-|                 | explicitamente o endereço do frontend React                 |
-|                 | (`localhost:5173` ou domínio de produção).                  |
+- Origem do frontend (Vite :5173) deve poder acessar a API (:8000) sem bloqueio de preflight
+- Configurado via `config/cors.php` + middleware `AllowCorsFromFrontend`
 
----
+#### [RNF-003] Sem Dependências Externas
 
-#### [RNF-002] Autenticação Stateless (Sanctum)
+- Banco SQLite local
+- LLM via LM Studio (OpenAI-compat)
+- Nenhum Docker, nenhuma API na cloud
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | A comunicação de endpoints administrativos (como aprovação  |
-|                 | de crédito) deve ser protegida por tokens de portador       |
-|                 | (Bearer Tokens) gerenciados pelo Laravel Sanctum.           |
+#### [RNF-004] Cobertura de Testes
 
----
+- Feature tests no backend via PHPUnit
+- Cobertura mínima: rotas principais + algoritmo de reuso de chaves
 
-#### [RNF-003] Cobertura de Testes Automatizados
+#### [RNF-005] Performance
 
-| Campo           | Detalhe                                                     |
-|-----------------|-------------------------------------------------------------|
-| **Descrição**   | O código do backend deve possuir cobertura de testes        |
-|                 | automatizados.                                              |
-| **Diretrizes**  | - Testes unitários devem validar isoladamente a **RN-02**.  |
-|                 | - Testes de integração devem validar o fluxo completo do    |
-|                 |   endpoint de cadastro até a escrita no banco PostgreSQL.   |
+- Operação de reuso de chaves: O(N) garantido via hashmap normalizado
+- Estimativa de tokens do lado do cliente antes de cada chamada
+- Truncamento de conversa antes do envio se passar de 12k caracteres
 
 ---
 
-## 4. Dicionário de Dados Inicial
+## 3. Dicionário de Dados
 
-### Tabela: `proprietarios`
+### Tabela: `notes`
 
-| Campo            | Tipo           | Restrição                | Descrição                    |
-|------------------|----------------|--------------------------|------------------------------|
-| `id`             | `BigInt`       | PK, AutoIncrement        | Identificador único           |
-| `nome`           | `VARCHAR(255)` | `NOT NULL`               | Nome do produtor              |
-| `documento`      | `VARCHAR(14)`  | `NOT NULL`, `UNIQUE`     | CPF ou CNPJ                   |
-| `limite_credito` | `Decimal(12,2)`| `NOT NULL`               | Crédito máximo nominal        |
+| Campo | Tipo | Restrição | Descrição |
+|---|---|---|---|
+| `id` | BigInt | PK, AutoIncrement | Identificador único |
+| `title` | VARCHAR(255) | NOT NULL, UNIQUE | Título da nota |
+| `content` | TEXT | NULL | Conteúdo em markdown |
+| `summary` | TEXT | NULL | Resumo gerado por IA |
+| `embedding` | TEXT | NULL | Reservado (JSON ou pgvector) |
+| `created_at` | TIMESTAMP | | |
+| `updated_at` | TIMESTAMP | | |
 
-### Tabela: `maquinas`
+### Tabela: `connections`
 
-| Campo             | Tipo           | Restrição                        | Descrição                    |
-|-------------------|----------------|----------------------------------|------------------------------|
-| `id`              | `BigInt`       | PK, AutoIncrement                | Identificador único           |
-| `proprietario_id` | `BigInt`       | FK (`proprietarios.id`)          | Dono do maquinário            |
-| `modelo`          | `VARCHAR(100)` | `NOT NULL`                       | Ex: "John Deere 8R"          |
-| `numero_serie`    | `VARCHAR(50)`  | `NOT NULL`, `UNIQUE`             | Chassi/Identificação          |
-| `tipo`            | `VARCHAR(30)`  | `NOT NULL`                       | Trator, Colheitadeira, etc.   |
+| Campo | Tipo | Restrição | Descrição |
+|---|---|---|---|
+| `id` | BigInt | PK | |
+| `source_note_id` | BigInt | FK → notes.id, CASCADE | Origem |
+| `target_note_id` | BigInt | FK → notes.id, CASCADE | Destino |
+| `weight` | FLOAT | DEFAULT 1.0 | Peso |
+| UNIQUE | | (source, target) | Impede duplicatas |
+
+### Tabela: `conversation_messages`
+
+| Campo | Tipo | Restrição | Descrição |
+|---|---|---|---|
+| `id` | BigInt | PK | |
+| `note_id` | BigInt | FK → notes.id, SET NULL | Nota associada (opcional) |
+| `role` | ENUM | user, assistant, system | Quem falou |
+| `content` | TEXT | NOT NULL | Conteúdo da mensagem |
+| `audio_url` | VARCHAR | NULL | OU session:<uuid> para agrupar conversas sem nota |
+| `created_at` | TIMESTAMP | | |
+
+---
+
+## 4. Stack
+
+| Camada | Tecnologia |
+|---|---|
+| Backend | Laravel 13 + PHP 8.3+ + SQLite |
+| Frontend | React 18 + TypeScript + Vite 5 + TailwindCSS 3 |
+| Grafo | D3.js (force simulation) |
+| LLM | LM Studio local (OpenAI-compatible) |
+| PDF | smalot/pdfparser |
+| Testes | PHPUnit 12 |
+| CI | GitHub Actions (PHP 8.4 + SQLite) |
 
 ---
 
 > **Histórico de Revisões**
 >
-> | Versão | Data       | Autor   | Descrição                     |
-> |--------|------------|---------|-------------------------------|
-> | 1.0    | Julho 2026 | VectorLink Team | Versão inicial do documento. |
+> | Versão | Data | Autor | Descrição |
+> |---|---|---|---|
+> | 1.0 | Julho 2026 | VectorLink Team | Spec original (crédito agrícola) |
+> | 2.0 | Setembro 2026 | Mavis + Henrique | Pivot para PKM (Segundo Cérebro) com LLM local |

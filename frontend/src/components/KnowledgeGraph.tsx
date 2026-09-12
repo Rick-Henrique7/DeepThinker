@@ -36,7 +36,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    // Cria o container principal do SVG com suporte a Zoom
+    // Cria o container principal do SVG com suporte a Zoom (mouse + touch)
     const g = svg.append('g');
 
     const zoomBehavior = d3
@@ -47,6 +47,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
       });
 
     svg.call(zoomBehavior);
+    // Pinch-zoom em mobile (touchstart/touchmove já são cobertos pelo d3-zoom por default)
 
     // Cria cópia profunda dos dados para não alterar o estado React original na simulação
     const nodesCopy: NodeItem[] = nodes.map((d) => ({ ...d }));
@@ -152,7 +153,7 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[550px] bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl"
+      className="relative w-full h-[60vh] sm:h-[550px] bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl touch-none"
     >
       {nodes.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm">
@@ -165,9 +166,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
         <svg ref={svgRef} className="w-full h-full" />
       )}
 
-      {/* Legenda Flutuante */}
-      <div className="absolute top-4 left-4 bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs text-slate-400">
-        💡 Arraste as bolinhas ou dê zoom com o scroll do mouse
+      {/* Legenda Flutuante — escondida em mobile pra não poluir */}
+      <div className="absolute top-3 left-3 hidden sm:block bg-slate-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs text-slate-400">
+        💡 Arraste as bolinhas ou dê zoom com o scroll
       </div>
     </div>
   );

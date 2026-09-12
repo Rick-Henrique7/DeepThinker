@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Save, FileText, Sparkles, ExternalLink } from 'lucide-react';
+import { X, Trash2, Save, FileText, Sparkles } from 'lucide-react';
+import { api } from '../lib/api';
 
 interface Note {
   id: number;
@@ -33,12 +34,9 @@ export const NoteDrawer: React.FC<NoteDrawerProps> = ({
     const fetchNoteDetail = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`http://localhost/api/notes/${noteId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setTitle(data.title || '');
-          setContent(data.content || '');
-        }
+        const data = await api.get<{ title: string; content: string }>(`/notes/${noteId}`);
+        setTitle(data.title || '');
+        setContent(data.content || '');
       } catch (err) {
         console.error('Erro ao buscar detalhes da nota:', err);
       } finally {
@@ -80,7 +78,7 @@ export const NoteDrawer: React.FC<NoteDrawerProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/50 backdrop-blur-sm flex justify-end transition-opacity animate-fade-in">
       {/* Container do Drawer que desliza da direita */}
-      <div className="w-full max-w-lg bg-slate-900 border-l border-slate-800 h-full p-6 flex flex-col shadow-2xl justify-between overflow-y-auto">
+      <div className="w-full max-w-lg bg-slate-900 border-l border-slate-800 h-full p-4 sm:p-6 flex flex-col shadow-2xl justify-between overflow-y-auto">
         {/* Cabeçalho */}
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">

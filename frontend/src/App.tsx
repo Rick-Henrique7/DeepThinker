@@ -1,96 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { ThoughtInput } from './components/ThoughtInput';
-import { KnowledgeGraph, NodeItem, LinkItem } from './components/KnowledgeGraph';
-import { NoteDrawer } from './components/NoteDrawer';
+import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Network, House, MessageSquare } from 'lucide-react';
+import { HomePage } from './pages/HomePage';
+import { GraphPage } from './pages/GraphPage';
+import { DevilsAdvocateSidebar } from './components/DevilsAdvocateSidebar';
 
-export function App() {
-  const [loading, setLoading] = useState(false);
-  const [nodes, setNodes] = useState<NodeItem[]>([]);
-  const [links, setLinks] = useState<LinkItem[]>([]);
-  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
-
-  // Busca dados atualizados do Grafo do Laravel
-  const fetchGraphData = async () => {
-    try {
-      const response = await fetch('http://localhost/api/graph');
-      if (response.ok) {
-        const data = await response.json();
-        setNodes(data.nodes || []);
-        setLinks(data.links || []);
-      }
-    } catch (err) {
-      console.error('Erro ao buscar grafo:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchGraphData();
-  }, []);
-
-  const handleUpdateNote = async (id: number, title: string, content: string) => {
-    try {
-      const response = await fetch(`http://localhost/api/notes/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ title, content }),
-      });
-
-      if (response.ok) {
-        await fetchGraphData();
-      }
-    } catch (err) {
-      console.error('Erro ao atualizar nota:', err);
-    }
-  };
-
-  const handleDeleteNote = async (id: number) => {
-    if (!confirm('Deseja realmente excluir esta nota?')) return;
-
-    try {
-      const response = await fetch(`http://localhost/api/notes/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        setSelectedNoteId(null);
-        await fetchGraphData();
-      }
-    } catch (err) {
-      console.error('Erro ao excluir nota:', err);
-    }
-  };
-
-  const handleSaveThought = async (title: string, content: string) => {
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost/api/notes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ title, content }),
-      });
-
-      if (response.ok) {
-        // Atualiza o Grafo imediatamente após a inclusão!
-        await fetchGraphData();
-      } else {
-        alert('Erro ao salvar no servidor Laravel.');
-      }
-    } catch (err) {
-      console.error('Erro de conexão:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+// Ícone fixo no canto superior direito para navegar entre as páginas
+function TopRightNav() {
+  const location = useLocation();
+  const isGraphPage = location.pathname === '/grafo';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
-      <header className="mb-6 text-center space-y-1">
-        <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+    <Link
+      to={isGraphPage ? '/' : '/grafo'}
+      title={isGraphPage ? 'Voltar ao Início' : 'Grafo de Conhecimento'}
+      aria-label={isGraphPage ? 'Voltar ao Início' : 'Abrir Grafo de Conhecimento'}
+      className="fixed top-4 right-4 sm:top-5 sm:right-5 z-[60] flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full border border-slate-700/80 bg-slate-900/80 text-slate-300 shadow-xl shadow-black/40 backdrop-blur transition-all hover:scale-105 hover:border-indigo-500/60 hover:text-indigo-300"
+    >
+      {isGraphPage ? <House className="h-5 w-5" /> : <Network className="h-5 w-5" />}
+    </Link>
+  );
+}
+
+// Botão flutuante do Advogado do Diabo (canto inferior direito)
+function DevilsAdvocateButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Abrir Advogado do Diabo"
+      aria-label="Abrir Advogado do Diabo"
+      className="fixed bottom-4 right-4 sm:bottom-5 sm:right-5 z-[60] flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-2xl shadow-indigo-600/40 backdrop-blur transition-all hover:scale-105 active:scale-95"
+    >
+      <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6" />
+    </button>
+  );
+}
+
+function Shell() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 px-4 py-4 sm:px-6 sm:py-6">
+      <header className="mb-4 sm:mb-6 text-center space-y-1">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
           DeepThinker
         </h1>
         <p className="text-slate-400 text-xs">
@@ -98,31 +51,25 @@ export function App() {
         </p>
       </header>
 
-      <main className="max-w-6xl mx-auto space-y-6">
-        {/* Caixa de Entrada com Reconhecimento de Voz */}
-        <ThoughtInput onSubmitThought={handleSaveThought} isLoading={loading} />
-
-        {/* Visualizador do Grafo com D3.js */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider px-1">
-            Grafo de Conhecimento
-          </h2>
-          <KnowledgeGraph
-            nodes={nodes}
-            links={links}
-            onSelectNode={(node) => setSelectedNoteId(node.id)}
-          />
-        </div>
+      <main key={location.pathname} className="max-w-6xl mx-auto">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/grafo" element={<GraphPage />} />
+        </Routes>
       </main>
 
-      {/* Drawer com Detalhes da Nota ao clicar no Nó */}
-      <NoteDrawer
-        noteId={selectedNoteId}
-        onClose={() => setSelectedNoteId(null)}
-        onUpdateNote={handleUpdateNote}
-        onDeleteNote={handleDeleteNote}
-      />
+      <TopRightNav />
+      <DevilsAdvocateButton onClick={() => setSidebarOpen(true)} />
+      <DevilsAdvocateSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <Shell />
+    </BrowserRouter>
   );
 }
 

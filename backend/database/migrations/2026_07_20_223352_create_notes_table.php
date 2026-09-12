@@ -16,9 +16,12 @@ return new class extends Migration
             $table->string('title')->unique();
             $table->text('content')->nullable();
             $table->text('summary')->nullable();
+            // Embedding armazenado como JSON (string) para manter compatibilidade
+            // com o ambiente local SQLite. Em produção com Postgres + pgvector
+            // esta coluna pode ser migrada para vector(768) e ganhar busca semântica.
+            $table->text('embedding')->nullable();
             $table->timestamps();
         });
-        DB::statement('ALTER TABLE notes ADD COLUMN embedding vector(768) NULL;');
     }
 
     /**

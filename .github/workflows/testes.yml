@@ -1,4 +1,4 @@
-name: Continuous Integration (Laravel & pgvector)
+name: Continuous Integration (Laravel)
 
 on:
   push:
@@ -19,21 +19,6 @@ jobs:
       run:
         working-directory: ./backend
 
-    services:
-      postgres:
-        image: pgvector/pgvector:pg16
-        env:
-          POSTGRES_DB: testing
-          POSTGRES_USER: sail
-          POSTGRES_PASSWORD: password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
     - name: Checkout do código
       uses: actions/checkout@v4
@@ -41,60 +26,42 @@ jobs:
     - name: Configurar ambiente PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.5'
-        extensions: mbstring, dom, fileinfo, pdo, pdo_pgsql, pgsql
+        php-version: '8.4'
+        extensions: mbstring, dom, fileinfo, pdo, pdo_sqlite, sqlite
         coverage: none
 
     - name: Verificar versão do PHP
       run: php -v
 
-    - name: Instalar Dependências do Composer sem scripts
-      run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
+    - name: Instalar Dependências do Composer
+      run: composer install --prefer-dist --no-progress --no-interaction
 
     - name: Configurar Arquivo .env e Gerar Key
       env:
         APP_ENV: testing
         APP_DEBUG: 'false'
-        DB_CONNECTION: pgsql
-        DB_HOST: 127.0.0.1
-        DB_PORT: 5432
-        DB_DATABASE: testing
-        DB_USERNAME: sail
-        DB_PASSWORD: password
+        DB_CONNECTION: sqlite
+        DB_DATABASE: database/database.sqlite
       run: |
         cp .env.example .env
+        touch database/database.sqlite
         php artisan key:generate
 
     - name: Executar Composer post-autoload scripts
       env:
         APP_ENV: testing
-        APP_DEBUG: 'false'
-        DB_CONNECTION: pgsql
-        DB_HOST: 127.0.0.1
-        DB_PORT: 5432
-        DB_DATABASE: testing
-        DB_USERNAME: sail
-        DB_PASSWORD: password
       run: composer run-script post-autoload-dump --no-interaction
 
-    - name: Rodar Migrations no PostgreSQL + pgvector
+    - name: Rodar Migrations no SQLite
       env:
-        DB_CONNECTION: pgsql
-        DB_HOST: 127.0.0.1
-        DB_PORT: 5432
-        DB_DATABASE: testing
-        DB_USERNAME: sail
-        DB_PASSWORD: password
+        DB_CONNECTION: sqlite
+        DB_DATABASE: database/database.sqlite
       run: php artisan migrate --force
 
     - name: Executar Suíte de Testes Automatizados
       env:
         APP_ENV: testing
         APP_DEBUG: 'false'
-        DB_CONNECTION: pgsql
-        DB_HOST: 127.0.0.1
-        DB_PORT: 5432
-        DB_DATABASE: testing
-        DB_USERNAME: sail
-        DB_PASSWORD: password
+        DB_CONNECTION: sqlite
+        DB_DATABASE: database/database.sqlite
       run: php artisan test
