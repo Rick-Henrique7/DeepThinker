@@ -20,7 +20,7 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
     useSpeechToText('pt-BR');
 
   useEffect(() => {
-    if (!transcript) return;
+    if (!transcript || typeof transcript !== 'string') return;
 
     setHistory((prev) => [...prev, { title, text }]);
     setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
