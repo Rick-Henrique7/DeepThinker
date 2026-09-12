@@ -52,18 +52,18 @@ class DocumentController extends Controller
         $existingTitles = Note::pluck('title')->all();
 
         $prompt = "Você é o Advogado do Diabo do DeepThinker.\n\n"
-            . "Tarefa: leia o documento abaixo e produza um JSON ESTRITO (sem markdown, sem comentários) com:\n"
-            . "- 'title': título curto (<= 80 chars) representando o documento.\n"
-            . "- 'summary': resumo objetivo em 2-4 frases.\n"
-            . "- 'key_points': array de objetos { 'key': string, 'detail': string } com 3-6 pontos-chave.\n\n"
+            . "TAREFA ÚNICA: leia o documento abaixo e produza APENAS um objeto JSON válido. Não comente, não use markdown.\n\n"
+            . "Formato EXATO:\n"
+            . "{\"title\":\"<titulo curto em portugues>\",\"summary\":\"<resumo em 2 frases>\",\"key_points\":[{\"key\":\"<titulo do ponto>\",\"detail\":\"<detalhe>\"}]}\n\n"
             . "Reaproveite chaves existentes quando fizer sentido — se um ponto-chave coincide com uma destas notas, use o título EXATO:\n"
             . json_encode($existingTitles, JSON_UNESCAPED_UNICODE) . "\n\n"
+            . "IMPORTANTE: Responda começando com { e terminando com }. Nada antes, nada depois.\n\n"
             . "Documento:\n---\n"
-            . $text . "\n---";
+            . $text . "\n---\n\nJSON:";
 
         $raw = $this->llm->chat(
             [['role' => 'user', 'content' => $prompt]],
-            options: ['temperature' => 0.3, 'max_tokens' => 1500]
+            options: ['temperature' => 0.2, 'max_tokens' => 600]
         );
 
         $parsed = $this->parseJsonLenient($raw);

@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Services\Contracts\LlmServiceContract;
 use Generator;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Implementação do LlmServiceContract usando LM Studio (OpenAI-compatível).
@@ -20,7 +19,6 @@ class LmStudioService implements LlmServiceContract
     private string $apiKey;
     private string $defaultModel;
     private int $timeout;
-    private int $chunkSize;
 
     public function __construct()
     {
@@ -29,7 +27,6 @@ class LmStudioService implements LlmServiceContract
         $this->apiKey = $cfg['api_key'] ?? 'lm-studio';
         $this->defaultModel = $cfg['default_model'] ?? 'gemma-1.1-2b-it';
         $this->timeout = (int) ($cfg['timeout'] ?? 120);
-        $this->chunkSize = (int) ($cfg['stream_chunk_size'] ?? 8);
     }
 
     public function chat(array $messages, ?string $model = null, array $options = []): string
@@ -53,6 +50,9 @@ class LmStudioService implements LlmServiceContract
     {
         $payload = $this->buildPayload($messages, $model, $options, stream: true);
 
+        $queue = new \SplQueue();
+        $done = false;
+
         $ch = curl_init($this->baseUrl . '/chat/completions');
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -60,27 +60,32 @@ class LmStudioService implements LlmServiceContract
             CURLOPT_POSTFIELDS => json_encode($payload),
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
+                'Accept: text/event-stream',
                 'Authorization: Bearer ' . $this->apiKey,
             ],
             CURLOPT_TIMEOUT => $this->timeout,
-            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$buffer, &$yield) {
-                $buffer .= $data;
-                // Cada evento SSE termina com \n\n; separamos por linhas.
-                while (($pos = strpos($buffer, "\n\n")) !== false) {
-                    $event = substr($buffer, 0, $pos);
-                    $buffer = substr($buffer, $pos + 2);
-                    foreach (explode("\n", $event) as $line) {
-                        if (str_starts_with($line, 'data:')) {
-                            $json = trim(substr($line, 5));
-                            if ($json === '[DONE]') {
-                                continue;
-                            }
-                            $decoded = json_decode($json, true);
-                            $delta = $decoded['choices'][0]['delta']['content'] ?? null;
-                            if ($delta !== null && $delta !== '') {
-                                $yield($delta);
-                            }
-                        }
+            CURLOPT_BUFFERSIZE => 128,
+            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$queue, &$done) {
+                // Cada linha "data: {...}" ou "[DONE]"
+                foreach (explode("\n", $data) as $line) {
+                    $line = trim($line);
+                    if ($line === '') continue;
+                    if (!str_starts_with($line, 'data:')) continue;
+                    $payload = trim(substr($line, 5));
+                    if ($payload === '[DONE]') {
+                        $done = true;
+                        continue;
+                    }
+                    $decoded = json_decode($payload, true);
+                    if (!is_array($decoded)) continue;
+                    if (isset($decoded['error'])) {
+                        $queue->push(['error' => $decoded['error']]);
+                        $done = true;
+                        continue;
+                    }
+                    $delta = $decoded['choices'][0]['delta']['content'] ?? null;
+                    if ($delta !== null && $delta !== '') {
+                        $queue->push($delta);
                     }
                 }
                 return strlen($data);
@@ -94,6 +99,15 @@ class LmStudioService implements LlmServiceContract
             throw new \RuntimeException("LM Studio stream falhou: {$err}");
         }
         curl_close($ch);
+        $done = true;
+
+        while (!$queue->isEmpty()) {
+            $item = $queue->pop();
+            if (is_array($item) && isset($item['error'])) {
+                throw new \RuntimeException($item['error']);
+            }
+            yield $item;
+        }
     }
 
     public function estimateTokens(string $text): int
@@ -108,7 +122,6 @@ class LmStudioService implements LlmServiceContract
 
     public function contextWindow(): int
     {
-        // Gemma 2B / Llama 3 8B padrão = 8192. Pode ser ajustado por modelo.
         return (int) env('LMSTUDIO_CONTEXT_WINDOW', 8192);
     }
 

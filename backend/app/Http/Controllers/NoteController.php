@@ -88,6 +88,19 @@ class NoteController extends Controller
      */
     public function summarize(Request $request): JsonResponse
     {
+        // Gemma 2B pode levar >30s pra gerar 1500 tokens; relaxa limite
+        @set_time_limit(180);
+
+        // Força leitura de JSON quando o body não é parseado automaticamente
+        // (workaround para php artisan serve em alguns cenários)
+        $json = $request->json()->all();
+        if (empty($json) && !empty($request->getContent())) {
+            $decoded = json_decode($request->getContent(), true);
+            if (is_array($decoded)) {
+                $request->merge($decoded);
+            }
+        }
+
         $validated = $request->validate([
             'messages' => 'required|array|min:2',
             'messages.*.role' => 'required|in:user,assistant,system',
@@ -112,18 +125,18 @@ class NoteController extends Controller
         }
 
         $prompt = "Você é o Advogado do Diabo do DeepThinker.\n\n"
-            . "Tarefa: leia a conversa abaixo e produza um JSON ESTRITO (sem markdown, sem comentários) com:\n"
-            . "- 'title': título curto (<= 80 chars) representando o tema central da conversa.\n"
-            . "- 'summary': resumo em 2-4 frases.\n"
-            . "- 'key_points': array de objetos { 'key': string, 'detail': string } com 3-6 pontos-chave.\n\n"
+            . "TAREFA ÚNICA: leia a conversa abaixo e produza APENAS um objeto JSON válido. Não continue a conversa, não comente, não use markdown.\n\n"
+            . "Formato EXATO (siga à risca):\n"
+            . "{\"title\":\"<titulo curto em portugues>\",\"summary\":\"<resumo em 2 frases>\",\"key_points\":[{\"key\":\"<titulo do ponto>\",\"detail\":\"<detalhe em 1 frase>\"},{\"key\":\"<titulo do ponto 2>\",\"detail\":\"<detalhe>\"}]}\n\n"
             . "Reaproveite chaves existentes quando fizer sentido — se um ponto-chave coincide com uma destas notas, use o título EXATO:\n"
             . json_encode($existing->pluck('title')->all(), JSON_UNESCAPED_UNICODE) . "\n\n"
+            . "IMPORTANTE: Responda começando com { e terminando com }. Nada antes, nada depois.\n\n"
             . "Conversa:\n---\n"
-            . $conversation . "\n---";
+            . $conversation . "\n---\n\nJSON:";
 
         $raw = $this->llm->chat(
             [['role' => 'user', 'content' => $prompt]],
-            options: ['temperature' => 0.3, 'max_tokens' => 1500]
+            options: ['temperature' => 0.2, 'max_tokens' => 600]
         );
 
         $parsed = $this->parseJsonLenient($raw);
