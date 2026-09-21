@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Brain, Scale, Sparkles, MessageSquare, Send, FileUp, X, Loader2, AlertTriangle, FileText, Trash2 } from 'lucide-react';
+import { Brain, Scale, Sparkles, MessageSquare, Send, FileUp, X, Loader2, AlertTriangle, FileText, Trash2, ChevronDown } from 'lucide-react';
 import { Modal, ConfirmModal } from '../components/Modal';
-import { ChatMessage, ChatMode, streamChat, estimateTokens } from '../lib/chat';
+import { ChatMessage, ChatMode, LlmProvider, streamChat, estimateTokens, fetchProviders, ProviderInfo } from '../lib/chat';
 import { api } from '../lib/api';
 
 const MODES: { id: ChatMode; label: string; description: string; icon: React.ElementType }[] = [
@@ -14,6 +14,8 @@ const STORAGE_KEY = 'deepthinker:advogado-session';
 
 interface PersistedSession {
   mode: ChatMode;
+  provider?: LlmProvider;
+  model?: string;
   messages: ChatMessage[];
 }
 
@@ -46,6 +48,10 @@ export function AdvogadoPage() {
   const [showSummaryConfirm, setShowSummaryConfirm] = useState(false);
   const [summaryBusy, setSummaryBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; title: string; message: string } | null>(null);
+  const [providers, setProviders] = useState<ProviderInfo | null>(null);
+  const [provider, setProvider] = useState<LlmProvider | null>(initial.provider ?? null);
+  const [model, setModel] = useState<string | null>(initial.model ?? null);
+  const [showModelPicker, setShowModelPicker] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,10 +60,33 @@ export function AdvogadoPage() {
   const usagePct = Math.min(100, (totalTokens / contextWindow) * 100);
   const overLimit = totalTokens > contextWindow;
 
-  // Persistir sessão
+  // Carregar providers na montagem
   useEffect(() => {
-    saveSession({ mode, messages: messages.filter((m) => !m.content.startsWith('__')) });
-  }, [mode, messages]);
+    fetchProviders()
+      .then((info) => {
+        setProviders(info);
+        // Auto-selecionar provider default se nenhum escolhido
+        if (!provider) {
+          setProvider(info.default);
+          const models = info.providers[info.default]?.models ?? [];
+          if (models[0]) setModel(models[0]);
+        }
+      })
+      .catch(() => {
+        // silencioso se falhar
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persistir sessão (incluindo provider/modelo)
+  useEffect(() => {
+    saveSession({
+      mode,
+      provider: provider ?? undefined,
+      model: model ?? undefined,
+      messages: messages.filter((m) => !m.content.startsWith('__')),
+    });
+  }, [mode, provider, model, messages]);
 
   // Aviso + truncamento quando excede
   useEffect(() => {
@@ -100,6 +129,8 @@ export function AdvogadoPage() {
     abortRef.current = new AbortController();
     try {
       const reply = await streamChat(next, mode, {
+        provider: provider ?? undefined,
+        model: model ?? undefined,
         onChunk: (chunk) => setStreamBuffer((buf) => buf + chunk),
         signal: abortRef.current.signal,
       });
@@ -195,15 +226,30 @@ export function AdvogadoPage() {
               Advogado do Diabo
             </h1>
           </div>
-          <button
-            onClick={handleClear}
-            disabled={messages.length === 0}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            title="Limpar conversa"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Limpar</span>
-          </button>
+          <div className="flex items-center gap-1">
+            {providers && provider && (
+              <button
+                onClick={() => setShowModelPicker(true)}
+                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-neutral-900 hover:bg-neutral-800 text-neutral-300 transition-colors border border-neutral-800"
+                title="Trocar provedor/modelo"
+              >
+                <span className="font-mono text-[10px] uppercase tracking-wide text-neutral-500">
+                  {provider === 'openai' ? 'OpenAI' : 'LM Studio'}
+                </span>
+                <span className="text-white max-w-[120px] truncate">{model ?? 'auto'}</span>
+                <ChevronDown className="h-3 w-3" strokeWidth={1.75} />
+              </button>
+            )}
+            <button
+              onClick={handleClear}
+              disabled={messages.length === 0}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Limpar conversa"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Limpar</span>
+            </button>
+          </div>
         </div>
 
         {/* Modo */}
@@ -394,6 +440,19 @@ export function AdvogadoPage() {
         onCancel={() => setShowSummaryConfirm(false)}
       />
 
+      <ModelPickerModal
+        open={showModelPicker}
+        providers={providers}
+        currentProvider={provider}
+        currentModel={model}
+        onSelect={(p, m) => {
+          setProvider(p);
+          setModel(m);
+          setShowModelPicker(false);
+        }}
+        onClose={() => setShowModelPicker(false)}
+      />
+
       {summaryBusy && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 backdrop-blur-md">
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl px-6 py-5 flex items-center gap-3 shadow-2xl">
@@ -403,6 +462,69 @@ export function AdvogadoPage() {
         </div>
       )}
     </div>
+  );
+}
+
+interface ModelPickerModalProps {
+  open: boolean;
+  providers: ProviderInfo | null;
+  currentProvider: LlmProvider | null;
+  currentModel: string | null;
+  onSelect: (provider: LlmProvider, model: string) => void;
+  onClose: () => void;
+}
+
+function ModelPickerModal({ open, providers, currentProvider, currentModel, onSelect, onClose }: ModelPickerModalProps) {
+  if (!open || !providers) return null;
+  const entries = (['lmstudio', 'openai'] as LlmProvider[]).filter((p) => providers.providers[p]?.available);
+
+  return (
+    <Modal open={open} onClose={onClose} title="Escolher provedor e modelo" size="md">
+      <div className="space-y-3">
+        {entries.length === 0 && (
+          <p className="text-sm text-neutral-400 text-center py-4">
+            Nenhum provedor disponível. Configure OPENAI_API_KEY no .env ou inicie o LM Studio.
+          </p>
+        )}
+        {entries.map((p) => {
+          const info = providers.providers[p];
+          const isCurrent = p === currentProvider;
+          return (
+            <div key={p} className="rounded-xl bg-neutral-900 border border-neutral-800 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-white">
+                  {p === 'openai' ? 'OpenAI (cloud)' : 'LM Studio (local)'}
+                </h4>
+                {isCurrent && (
+                  <span className="text-[10px] uppercase tracking-wide text-emerald-400">
+                    ativo
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {info.models.map((m) => {
+                  const selected = p === currentProvider && m === currentModel;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => onSelect(p, m)}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-mono text-left transition-colors ${
+                        selected
+                          ? 'bg-white text-black'
+                          : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+                      }`}
+                      title={m}
+                    >
+                      <span className="block truncate">{m}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Modal>
   );
 }
 
