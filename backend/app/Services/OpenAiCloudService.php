@@ -32,9 +32,9 @@ class OpenAiCloudService implements LlmServiceContract
         $this->timeout = (int) ($cfg['timeout'] ?? 60);
     }
 
-    public function chat(array $messages, ?string $model = null, array $options = []): string
+    public function chat(array $messages, ?string $model = null, array $options = [], ?array $tools = null): string
     {
-        $payload = $this->buildPayload($messages, $model, $options, stream: false);
+        $payload = $this->buildPayload($messages, $model, $options, stream: false, tools: $tools);
 
         if (empty($this->apiKey)) {
             throw new \RuntimeException('OPENAI_API_KEY nao configurada. Defina em Settings.');
@@ -53,15 +53,18 @@ class OpenAiCloudService implements LlmServiceContract
         return $data['choices'][0]['message']['content'] ?? '';
     }
 
-    public function stream(array $messages, ?string $model = null, array $options = []): Generator
+    public function stream(array $messages, ?string $model = null, array $options = [], ?array $tools = null): Generator
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('OPENAI_API_KEY nao configurada. Defina em Settings.');
         }
 
-        $payload = $this->buildPayload($messages, $model, $options, stream: true);
+        $payload = $this->buildPayload($messages, $model, $options, stream: true, tools: $tools);
 
         $queue = new \SplQueue();
+
+        // Acumulador de tool_calls streamed (OpenAI manda em chunks parciais)
+        $toolAccum = [];
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
         curl_setopt_array($ch, [
@@ -76,7 +79,7 @@ class OpenAiCloudService implements LlmServiceContract
             ],
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_BUFFERSIZE => 128,
-            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$queue) {
+            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$queue, &$toolAccum) {
                 foreach (explode("\n", $data) as $line) {
                     $line = trim($line);
                     if ($line === '') continue;
@@ -89,9 +92,34 @@ class OpenAiCloudService implements LlmServiceContract
                         $queue->push(['error' => $decoded['error']['message'] ?? 'unknown']);
                         continue;
                     }
-                    $delta = $decoded['choices'][0]['delta']['content'] ?? null;
-                    if ($delta !== null && $delta !== '') {
-                        $queue->push($delta);
+                    $delta = $decoded['choices'][0]['delta'] ?? [];
+                    // Conteudo de texto
+                    $content = $delta['content'] ?? null;
+                    if ($content !== null && $content !== '') {
+                        $queue->push($content);
+                    }
+                    // Tool calls streamed em pedacos
+                    if (isset($delta['tool_calls']) && is_array($delta['tool_calls'])) {
+                        foreach ($delta['tool_calls'] as $tc) {
+                            $idx = $tc['index'] ?? 0;
+                            if (!isset($toolAccum[$idx])) {
+                                $toolAccum[$idx] = [
+                                    'id' => $tc['id'] ?? null,
+                                    'type' => 'function',
+                                    'function' => [
+                                        'name' => '',
+                                        'arguments' => '',
+                                    ],
+                                ];
+                            }
+                            if (isset($tc['id'])) $toolAccum[$idx]['id'] = $tc['id'];
+                            if (isset($tc['function']['name'])) {
+                                $toolAccum[$idx]['function']['name'] .= $tc['function']['name'];
+                            }
+                            if (isset($tc['function']['arguments'])) {
+                                $toolAccum[$idx]['function']['arguments'] .= $tc['function']['arguments'];
+                            }
+                        }
                     }
                 }
                 return strlen($data);
@@ -105,6 +133,11 @@ class OpenAiCloudService implements LlmServiceContract
             throw new \RuntimeException("OpenAI stream falhou: {$err}");
         }
         curl_close($ch);
+
+        // Emite tool_calls acumulados ANTES do done (consumidor decide o que fazer)
+        foreach ($toolAccum as $tc) {
+            $queue->push(['tool_call' => $tc]);
+        }
 
         while (!$queue->isEmpty()) {
             $item = $queue->pop();
@@ -154,15 +187,20 @@ class OpenAiCloudService implements LlmServiceContract
         }
     }
 
-    private function buildPayload(array $messages, ?string $model, array $options, bool $stream): array
+    private function buildPayload(array $messages, ?string $model, array $options, bool $stream, ?array $tools = null): array
     {
-        return [
+        $payload = [
             'model' => $model ?? $this->defaultModel,
             'messages' => $messages,
             'stream' => $stream,
             'temperature' => $options['temperature'] ?? 0.7,
             'max_tokens' => $options['max_tokens'] ?? 1024,
         ];
+        if (!empty($tools)) {
+            $payload['tools'] = $tools;
+            $payload['tool_choice'] = $options['tool_choice'] ?? 'auto';
+        }
+        return $payload;
     }
 
     private function getOrg(): string

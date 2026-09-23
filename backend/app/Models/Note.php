@@ -16,7 +16,13 @@ class Note extends Model
         'title',
         'content',
         'summary',
+        'source_type',
+        'source_meta',
         'embedding',
+    ];
+
+    protected $casts = [
+        'source_meta' => 'array',
     ];
 
     /**

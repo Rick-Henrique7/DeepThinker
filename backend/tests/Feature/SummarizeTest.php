@@ -23,7 +23,7 @@ class SummarizeTest extends TestCase
         // Bind a fake LLM service that returns a predictable JSON response.
         $this->app->bind(LlmServiceContract::class, function () {
             return new class implements LlmServiceContract {
-                public function chat(array $messages, ?string $model = null, array $options = []): string
+                public function chat(array $messages, ?string $model = null, array $options = [], ?array $tools = null): string
                 {
                     return json_encode([
                         'title' => 'Síntese da Conversa',
@@ -35,7 +35,7 @@ class SummarizeTest extends TestCase
                     ], JSON_UNESCAPED_UNICODE);
                 }
 
-                public function stream(array $messages, ?string $model = null, array $options = []): \Generator
+                public function stream(array $messages, ?string $model = null, array $options = [], ?array $tools = null): \Generator
                 {
                     yield 'chunk';
                 }
@@ -90,7 +90,7 @@ class SummarizeTest extends TestCase
 
         $this->app->bind(LlmServiceContract::class, function () {
             return new class implements LlmServiceContract {
-                public function chat(array $messages, ?string $model = null, array $options = []): string
+                public function chat(array $messages, ?string $model = null, array $options = [], ?array $tools = null): string
                 {
                     // LLM devolve título com acentos diferentes — o algoritmo deve normalizar
                     return json_encode([
@@ -103,7 +103,7 @@ class SummarizeTest extends TestCase
                     ], JSON_UNESCAPED_UNICODE);
                 }
 
-                public function stream(array $messages, ?string $model = null, array $options = []): \Generator { yield 'x'; }
+                public function stream(array $messages, ?string $model = null, array $options = [], ?array $tools = null): \Generator { yield 'x'; }
                 public function estimateTokens(string $text): int { return 1; }
                 public function contextWindow(): int { return 8192; }
                 public function isAvailable(): bool { return true; }

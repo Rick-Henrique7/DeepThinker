@@ -106,6 +106,9 @@ class NoteController extends Controller
             'messages.*.role' => 'required|in:user,assistant,system',
             'messages.*.content' => 'required|string',
             'mode' => 'nullable|in:socratic,critic,brainstorm',
+            'session_id' => 'nullable|string|max:64',
+            'provider' => 'nullable|in:lmstudio,openai',
+            'model' => 'nullable|string|max:128',
         ]);
 
         $existing = Note::query()->select('id', 'title')->get();
@@ -115,9 +118,13 @@ class NoteController extends Controller
         }
 
         $conversation = '';
+        $userMsgCount = 0;
+        $assistantMsgCount = 0;
         foreach ($validated['messages'] as $m) {
             if ($m['role'] === 'system') continue;
             $conversation .= strtoupper($m['role']) . ": " . $m['content'] . "\n\n";
+            if ($m['role'] === 'user') $userMsgCount++;
+            if ($m['role'] === 'assistant') $assistantMsgCount++;
         }
 
         if (strlen($conversation) > 12000) {
@@ -151,6 +158,17 @@ class NoteController extends Controller
             'title' => $this->uniqueTitle($title, $existingMap),
             'content' => $conversation,
             'summary' => $summary,
+            'source_type' => 'conversation',
+            'source_meta' => [
+                'mode' => $validated['mode'] ?? 'socratic',
+                'message_count' => count($validated['messages']),
+                'user_messages' => $userMsgCount,
+                'assistant_messages' => $assistantMsgCount,
+                'provider' => $validated['provider'] ?? null,
+                'model' => $validated['model'] ?? null,
+                'session_id' => $validated['session_id'] ?? null,
+                'created_via' => 'summarize',
+            ],
         ]);
 
         $created = 0;

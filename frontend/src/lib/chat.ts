@@ -1,6 +1,6 @@
 import { BASE_URL } from './api';
 
-export type ChatRole = 'system' | 'user' | 'assistant';
+export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
 export type ChatMode = 'socratic' | 'critic' | 'brainstorm';
 export type LlmProvider = 'lmstudio' | 'openai';
 
@@ -9,25 +9,45 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface ToolResult {
+  call_id: string;
+  name: string;
+  ok: boolean;
+  result?: Record<string, unknown>;
+  error?: string;
+}
+
 export interface ChatOptions {
   provider?: LlmProvider;
   model?: string;
   signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
   onProvider?: (provider: LlmProvider) => void;
+  onToolCall?: (tc: ToolCall) => void;
+  onToolResult?: (tr: ToolResult) => void;
+  toolsEnabled?: boolean;
+  sessionId?: string;
 }
 
 export interface ProviderInfo {
   default: LlmProvider;
   providers: Record<
     LlmProvider,
-    { available: boolean; models: string[] }
+    { available: boolean; models: string[]; default_model?: string }
   >;
 }
 
 /**
  * Descobre providers e modelos disponiveis via backend.
- * Backend le env (LMSTUDIO_*, OPENAI_*) e retorna catalogo.
  */
 export async function fetchProviders(): Promise<ProviderInfo> {
   const r = await fetch(`${BASE_URL}/chat/providers`, {
@@ -39,7 +59,12 @@ export async function fetchProviders(): Promise<ProviderInfo> {
 
 /**
  * Consome o endpoint SSE /api/chat/stream e streama chunks para o callback.
- * Retorna a resposta completa quando o stream termina.
+ * Eventos reconhecidos:
+ *   { chunk, provider }         -> streaming de texto
+ *   { tool_call, provider }     -> LLM chamou uma tool (criar nota, etc)
+ *   { tool_result, ... }        -> resultado da tool executada pelo backend
+ *   { done }                    -> stream terminou
+ *   { error }                   -> erro fatal
  */
 export async function streamChat(
   messages: ChatMessage[],
@@ -59,14 +84,15 @@ export async function streamChat(
       mode,
       provider: options.provider,
       model: options.model,
+      tools_enabled: options.toolsEnabled ?? false,
+      session_id: options.sessionId,
       note_id: noteId,
     }),
     signal: options.signal,
   });
 
   if (!response.ok || !response.body) {
-    const err = new Error(`Stream falhou: HTTP ${response.status}`);
-    throw err;
+    throw new Error(`Stream falhou: HTTP ${response.status}`);
   }
 
   const reader = response.body.getReader();
@@ -87,20 +113,27 @@ export async function streamChat(
         if (!line.startsWith('data:')) continue;
         const json = line.slice(5).trim();
         if (json === '[DONE]') continue;
+        let parsed: any;
         try {
-          const parsed = JSON.parse(json);
-          if (parsed.error) {
-            throw new Error(parsed.error);
-          }
-          if (parsed.chunk) {
-            fullReply += parsed.chunk;
-            options.onChunk?.(parsed.chunk);
-          }
-          if (parsed.provider && options.onProvider) {
-            options.onProvider(parsed.provider);
-          }
-        } catch (e) {
-          if (e instanceof Error && e.message) throw e;
+          parsed = JSON.parse(json);
+        } catch {
+          continue;
+        }
+        if (parsed.error) {
+          throw new Error(parsed.error);
+        }
+        if (parsed.chunk) {
+          fullReply += parsed.chunk;
+          options.onChunk?.(parsed.chunk);
+        }
+        if (parsed.provider && options.onProvider) {
+          options.onProvider(parsed.provider);
+        }
+        if (parsed.tool_call && options.onToolCall) {
+          options.onToolCall(parsed.tool_call as ToolCall);
+        }
+        if (parsed.tool_result && options.onToolResult) {
+          options.onToolResult(parsed.tool_result as ToolResult);
         }
       }
     }
@@ -111,7 +144,6 @@ export async function streamChat(
 
 /**
  * Estimador simples de tokens (heuristica: ~0.75 palavras).
- * Igual ao estimateTokens() do backend.
  */
 export function estimateTokens(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean);

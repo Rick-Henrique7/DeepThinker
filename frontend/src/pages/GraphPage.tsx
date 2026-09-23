@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { KnowledgeGraph, NodeItem, LinkItem } from '../components/KnowledgeGraph';
 import { NoteDrawer } from '../components/NoteDrawer';
 import { api } from '../lib/api';
 
 export function GraphPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [nodes, setNodes] = useState<NodeItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
@@ -21,6 +23,20 @@ export function GraphPage() {
   useEffect(() => {
     fetchGraphData();
   }, []);
+
+  // Suporte a ?focus=ID vindo do Advogado (tool result criou uma nota)
+  useEffect(() => {
+    const focus = searchParams.get('focus');
+    if (focus) {
+      const id = Number(focus);
+      if (Number.isFinite(id) && id > 0) {
+        setSelectedNoteId(id);
+        // limpa o param pra nao re-abrir em F5
+        setSearchParams({}, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleUpdateNote = async (id: number, title: string, content: string) => {
     try {

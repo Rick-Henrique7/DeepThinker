@@ -26,6 +26,7 @@ Route::get('/graph', [NoteController::class, 'graph']);
 // Advogado do Diabo (IA) — multi-provider
 // =====================================================================
 Route::get('/chat/providers', [ChatController::class, 'providers']);
+Route::get('/chat/tools', [ChatController::class, 'tools']);
 Route::match(['get', 'post'], '/chat/stream', [ChatController::class, 'stream']);
 // Compat: rota legada aponta para AiStreamController (modo antigo)
 Route::get('/chat/stream-legacy', [AiStreamController::class, 'stream']);

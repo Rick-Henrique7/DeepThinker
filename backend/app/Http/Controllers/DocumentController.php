@@ -73,6 +73,13 @@ class DocumentController extends Controller
                 'title' => substr('Doc: ' . pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME), 0, 255),
                 'content' => $text,
                 'summary' => mb_substr($text, 0, 280),
+                'source_type' => 'document',
+                'source_meta' => [
+                    'filename' => $file->getClientOriginalName(),
+                    'mime' => $file->getClientMimeType(),
+                    'extracted_chars' => strlen($text),
+                    'fallback' => true,
+                ],
             ]);
             return response()->json([
                 'note' => $note,
@@ -91,6 +98,13 @@ class DocumentController extends Controller
             'title' => $this->uniqueTitle($title, $existingMap),
             'content' => $text,
             'summary' => $summary,
+            'source_type' => 'document',
+            'source_meta' => [
+                'filename' => $file->getClientOriginalName(),
+                'mime' => $file->getClientMimeType(),
+                'extracted_chars' => strlen($text),
+                'storage_path' => $path,
+            ],
         ]);
 
         $created = 0;

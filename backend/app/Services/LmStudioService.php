@@ -38,9 +38,9 @@ class LmStudioService implements LlmServiceContract
         $this->contextWindow = (int) ($cfg['context_window'] ?? 8192);
     }
 
-    public function chat(array $messages, ?string $model = null, array $options = []): string
+    public function chat(array $messages, ?string $model = null, array $options = [], ?array $tools = null): string
     {
-        $payload = $this->buildPayload($messages, $model, $options, stream: false);
+        $payload = $this->buildPayload($messages, $model, $options, stream: false, tools: $tools);
         $response = Http::withToken($this->apiKey)
             ->timeout($this->timeout)
             ->post($this->baseUrl . '/chat/completions', $payload);
@@ -55,12 +55,12 @@ class LmStudioService implements LlmServiceContract
         return $data['choices'][0]['message']['content'] ?? '';
     }
 
-    public function stream(array $messages, ?string $model = null, array $options = []): Generator
+    public function stream(array $messages, ?string $model = null, array $options = [], ?array $tools = null): Generator
     {
-        $payload = $this->buildPayload($messages, $model, $options, stream: true);
+        $payload = $this->buildPayload($messages, $model, $options, stream: true, tools: $tools);
 
         $queue = new \SplQueue();
-        $done = false;
+        $toolAccum = [];
 
         $ch = curl_init($this->baseUrl . '/chat/completions');
         curl_setopt_array($ch, [
@@ -74,27 +74,42 @@ class LmStudioService implements LlmServiceContract
             ],
             CURLOPT_TIMEOUT => $this->timeout,
             CURLOPT_BUFFERSIZE => 128,
-            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$queue, &$done) {
-                // Cada linha "data: {...}" ou "[DONE]"
+            CURLOPT_WRITEFUNCTION => function ($ch, $data) use (&$queue, &$toolAccum) {
                 foreach (explode("\n", $data) as $line) {
                     $line = trim($line);
                     if ($line === '') continue;
                     if (!str_starts_with($line, 'data:')) continue;
                     $payload = trim(substr($line, 5));
-                    if ($payload === '[DONE]') {
-                        $done = true;
-                        continue;
-                    }
+                    if ($payload === '[DONE]') continue;
                     $decoded = json_decode($payload, true);
                     if (!is_array($decoded)) continue;
                     if (isset($decoded['error'])) {
                         $queue->push(['error' => $decoded['error']]);
-                        $done = true;
                         continue;
                     }
-                    $delta = $decoded['choices'][0]['delta']['content'] ?? null;
-                    if ($delta !== null && $delta !== '') {
-                        $queue->push($delta);
+                    $delta = $decoded['choices'][0]['delta'] ?? [];
+                    $content = $delta['content'] ?? null;
+                    if ($content !== null && $content !== '') {
+                        $queue->push($content);
+                    }
+                    if (isset($delta['tool_calls']) && is_array($delta['tool_calls'])) {
+                        foreach ($delta['tool_calls'] as $tc) {
+                            $idx = $tc['index'] ?? 0;
+                            if (!isset($toolAccum[$idx])) {
+                                $toolAccum[$idx] = [
+                                    'id' => $tc['id'] ?? null,
+                                    'type' => 'function',
+                                    'function' => ['name' => '', 'arguments' => ''],
+                                ];
+                            }
+                            if (isset($tc['id'])) $toolAccum[$idx]['id'] = $tc['id'];
+                            if (isset($tc['function']['name'])) {
+                                $toolAccum[$idx]['function']['name'] .= $tc['function']['name'];
+                            }
+                            if (isset($tc['function']['arguments'])) {
+                                $toolAccum[$idx]['function']['arguments'] .= $tc['function']['arguments'];
+                            }
+                        }
                     }
                 }
                 return strlen($data);
@@ -108,7 +123,10 @@ class LmStudioService implements LlmServiceContract
             throw new \RuntimeException("LM Studio stream falhou: {$err}");
         }
         curl_close($ch);
-        $done = true;
+
+        foreach ($toolAccum as $tc) {
+            $queue->push(['tool_call' => $tc]);
+        }
 
         while (!$queue->isEmpty()) {
             $item = $queue->pop();
@@ -159,14 +177,19 @@ class LmStudioService implements LlmServiceContract
         }
     }
 
-    private function buildPayload(array $messages, ?string $model, array $options, bool $stream): array
+    private function buildPayload(array $messages, ?string $model, array $options, bool $stream, ?array $tools = null): array
     {
-        return [
+        $payload = [
             'model' => $model ?? $this->defaultModel,
             'messages' => $messages,
             'stream' => $stream,
             'temperature' => $options['temperature'] ?? 0.7,
             'max_tokens' => $options['max_tokens'] ?? 1024,
         ];
+        if (!empty($tools)) {
+            $payload['tools'] = $tools;
+            $payload['tool_choice'] = $options['tool_choice'] ?? 'auto';
+        }
+        return $payload;
     }
 }

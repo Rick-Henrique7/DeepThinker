@@ -14,17 +14,23 @@ interface LlmServiceContract
      * Envia uma conversa para o LLM e retorna a resposta completa (não-streaming).
      *
      * @param array<int, array{role: string, content: string}> $messages
+     * @param array<string, mixed> $options  temperature, max_tokens, etc.
+     * @param array<int, array<string, mixed>>|null $tools  OpenAI-formatted tools array
      * @return string Conteúdo da resposta do assistente
      */
-    public function chat(array $messages, ?string $model = null, array $options = []): string;
+    public function chat(array $messages, ?string $model = null, array $options = [], ?array $tools = null): string;
 
     /**
      * Stream de tokens (Server-Sent Events). Yields strings incrementais.
+     * Quando tools estao presentes, yields tambem podem ser arrays
+     * ['tool_call' => ['id' => ..., 'name' => ..., 'arguments' => ...]].
      *
      * @param array<int, array{role: string, content: string}> $messages
-     * @return Generator<int, string>
+     * @param array<string, mixed> $options
+     * @param array<int, array<string, mixed>>|null $tools
+     * @return Generator<int, string|array{tool_call: array<string, mixed>}>
      */
-    public function stream(array $messages, ?string $model = null, array $options = []): Generator;
+    public function stream(array $messages, ?string $model = null, array $options = [], ?array $tools = null): Generator;
 
     /**
      * Conta tokens aproximados de um texto (estimador simples por palavras).
