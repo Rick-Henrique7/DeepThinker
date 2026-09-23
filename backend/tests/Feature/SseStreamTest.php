@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class SseStreamTest extends TestCase
 {
+    use RefreshDatabase;
     /**
      * Testa se o endpoint SSE responde com os headers de streaming corretos.
      */

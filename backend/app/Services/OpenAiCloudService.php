@@ -9,21 +9,27 @@ use Illuminate\Support\Facades\Http;
 /**
  * Implementação OpenAI Cloud (api.openai.com) usando API key.
  *
+ * Credenciais e modelo vem de LlmSettingsService (DB -> .env fallback),
+ * permitindo trocar a chave ou modelo sem restart do backend.
+ *
  * Suporta modelos: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, etc.
  * Streaming via SSE (mesmo formato que LM Studio).
  */
 class OpenAiCloudService implements LlmServiceContract
 {
+    private LlmSettingsService $settings;
     private string $apiKey;
     private string $defaultModel;
     private int $timeout;
 
-    public function __construct()
+    public function __construct(?LlmSettingsService $settings = null)
     {
-        $cfg = config('llm');
-        $this->apiKey = (string) ($cfg['providers']['openai']['api_key'] ?? '');
-        $this->defaultModel = (string) ($cfg['providers']['openai']['default_model'] ?? 'gpt-4o-mini');
-        $this->timeout = (int) ($cfg['providers']['openai']['timeout'] ?? 60);
+        $this->settings = $settings ?? app(LlmSettingsService::class);
+        $this->apiKey = (string) ($this->settings->getKey('openai', 'api_key') ?? '');
+        $this->defaultModel = (string) ($this->settings->getKey('openai', 'model')
+            ?? config('llm.providers.openai.default_model', 'gpt-4o-mini'));
+        $cfg = (array) config('llm.providers.openai', []);
+        $this->timeout = (int) ($cfg['timeout'] ?? 60);
     }
 
     public function chat(array $messages, ?string $model = null, array $options = []): string
@@ -31,7 +37,7 @@ class OpenAiCloudService implements LlmServiceContract
         $payload = $this->buildPayload($messages, $model, $options, stream: false);
 
         if (empty($this->apiKey)) {
-            throw new \RuntimeException('OPENAI_API_KEY nao configurada. Defina no .env');
+            throw new \RuntimeException('OPENAI_API_KEY nao configurada. Defina em Settings.');
         }
 
         $response = Http::withToken($this->apiKey)
@@ -50,13 +56,12 @@ class OpenAiCloudService implements LlmServiceContract
     public function stream(array $messages, ?string $model = null, array $options = []): Generator
     {
         if (empty($this->apiKey)) {
-            throw new \RuntimeException('OPENAI_API_KEY nao configurada. Defina no .env');
+            throw new \RuntimeException('OPENAI_API_KEY nao configurada. Defina em Settings.');
         }
 
         $payload = $this->buildPayload($messages, $model, $options, stream: true);
 
         $queue = new \SplQueue();
-        $done = false;
 
         $ch = curl_init('https://api.openai.com/v1/chat/completions');
         curl_setopt_array($ch, [
@@ -162,6 +167,6 @@ class OpenAiCloudService implements LlmServiceContract
 
     private function getOrg(): string
     {
-        return (string) (config('llm.providers.openai.organization') ?? '');
+        return (string) ($this->settings->getKey('openai', 'organization') ?? '');
     }
 }

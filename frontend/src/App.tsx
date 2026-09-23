@@ -5,6 +5,7 @@ import { BottomNav } from './components/BottomNav';
 import { HomePage } from './pages/HomePage';
 import { GraphPage } from './pages/GraphPage';
 import { AdvogadoPage } from './pages/AdvogadoPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 function Shell() {
   return (
@@ -15,6 +16,7 @@ function Shell() {
           <Route path="/" element={<HomePage />} />
           <Route path="/grafo" element={<GraphPage />} />
           <Route path="/advogado" element={<AdvogadoPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
       <BottomNav />

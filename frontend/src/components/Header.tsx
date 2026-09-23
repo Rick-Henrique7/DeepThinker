@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Brain, Network, MessageSquare, Circle } from 'lucide-react';
+import { Brain, Network, MessageSquare, Settings as SettingsIcon, Circle } from 'lucide-react';
 
 interface HeaderProps {
   className?: string;
@@ -65,6 +65,10 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
           <NavLink to="/advogado" className={navItemClass}>
             <MessageSquare className="h-4 w-4" />
             Advogado
+          </NavLink>
+          <NavLink to="/settings" className={navItemClass}>
+            <SettingsIcon className="h-4 w-4" />
+            IA
           </NavLink>
         </nav>
 

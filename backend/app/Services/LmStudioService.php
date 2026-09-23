@@ -19,14 +19,23 @@ class LmStudioService implements LlmServiceContract
     private string $apiKey;
     private string $defaultModel;
     private int $timeout;
+    private int $contextWindow;
 
-    public function __construct()
+    public function __construct(?LlmSettingsService $settings = null)
     {
-        $cfg = config('lmstudio');
-        $this->baseUrl = rtrim($cfg['base_url'] ?? 'http://localhost:1234/v1', '/');
-        $this->apiKey = $cfg['api_key'] ?? 'lm-studio';
-        $this->defaultModel = $cfg['default_model'] ?? 'gemma-1.1-2b-it';
+        $settings = $settings ?? app(LlmSettingsService::class);
+        $cfg = (array) config('lmstudio', []);
+        $this->baseUrl = rtrim((string) ($settings->getKey('lmstudio', 'base_url')
+            ?? $cfg['base_url']
+            ?? 'http://localhost:1234/v1'), '/');
+        $this->apiKey = (string) ($settings->getKey('lmstudio', 'api_key')
+            ?? $cfg['api_key']
+            ?? 'lm-studio');
+        $this->defaultModel = (string) ($settings->getKey('lmstudio', 'model')
+            ?? $cfg['default_model']
+            ?? 'gemma-1.1-2b-it');
         $this->timeout = (int) ($cfg['timeout'] ?? 120);
+        $this->contextWindow = (int) ($cfg['context_window'] ?? 8192);
     }
 
     public function chat(array $messages, ?string $model = null, array $options = []): string
@@ -122,7 +131,7 @@ class LmStudioService implements LlmServiceContract
 
     public function contextWindow(): int
     {
-        return (int) env('LMSTUDIO_CONTEXT_WINDOW', 8192);
+        return $this->contextWindow;
     }
 
     public function isAvailable(): bool

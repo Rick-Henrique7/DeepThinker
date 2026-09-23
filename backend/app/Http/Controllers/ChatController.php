@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ConversationMessage;
 use App\Services\Contracts\LlmServiceContract;
+use App\Services\LlmSettingsService;
 use App\Services\LmStudioService;
 use App\Services\OpenAiCloudService;
 use Illuminate\Http\Request;
@@ -24,12 +25,34 @@ class ChatController extends Controller
 
     public function stream(Request $request): StreamedResponse
     {
+        $settings = app(LlmSettingsService::class);
         $messages = $this->normalizeMessages($request);
         $mode = $request->input('mode', 'socratic');
-        $provider = $this->resolveProvider($request);
+        $provider = $this->resolveProvider($request, $settings);
         $model = $request->input('model');
 
         if (empty($messages)) {
+            // Compat: GET sem body devolve um stream curto de boas-vindas (200).
+            // POST sem messages -> 400 com erro detalhado (cliente mal-comportado).
+            if ($request->getMethod() === 'GET') {
+                return response()->stream(function () {
+                    $msg = 'Ola! Sou o Advogado do Diabo do DeepThinker. Envie uma mensagem para comecar.';
+                    foreach (explode(' ', $msg) as $word) {
+                        echo "data: " . json_encode(['chunk' => $word . ' ']) . "\n\n";
+                        if (ob_get_level() > 0) ob_flush();
+                        flush();
+                        usleep(50000);
+                    }
+                    echo "data: " . json_encode(['done' => true]) . "\n\n";
+                    if (ob_get_level() > 0) ob_flush();
+                    flush();
+                }, 200, [
+                    'Content-Type' => 'text/event-stream',
+                    'Cache-Control' => 'no-cache',
+                    'Connection' => 'keep-alive',
+                    'X-Accel-Buffering' => 'no',
+                ]);
+            }
             return response()->stream(function () {
                 echo "data: " . json_encode(['error' => 'Nenhuma mensagem fornecida.']) . "\n\n";
                 if (ob_get_level() > 0) ob_flush();
@@ -41,7 +64,7 @@ class ChatController extends Controller
         if (!$llm->isAvailable()) {
             return response()->stream(function () use ($provider) {
                 $hint = $provider === 'openai'
-                    ? 'Configure OPENAI_API_KEY no .env do backend.'
+                    ? 'Defina a API key em Settings -> IA.'
                     : "Verifique se LM Studio esta rodando.";
                 echo "data: " . json_encode(['error' => "Provider '{$provider}' indisponivel. {$hint}"]) . "\n\n";
                 if (ob_get_level() > 0) ob_flush();
@@ -100,10 +123,11 @@ class ChatController extends Controller
 
     /**
      * GET /api/chat/providers — lista providers e modelos disponiveis.
+     * Agora reflete o `active_provider` em LlmSettingsService (editavel).
      */
     public function providers(): \Illuminate\Http\JsonResponse
     {
-        $default = config('llm.provider', 'lmstudio');
+        $settings = app(LlmSettingsService::class);
         $catalog = (array) config('llm.catalog', []);
         $available = [];
         foreach (self::PROVIDERS as $p) {
@@ -111,21 +135,23 @@ class ChatController extends Controller
             $available[$p] = [
                 'available' => $svc->isAvailable(),
                 'models' => $catalog[$p] ?? [],
+                'default_model' => (string) ($settings->getKey($p, 'model')
+                    ?? config("llm.providers.{$p}.default_model")),
             ];
         }
         return response()->json([
-            'default' => $default,
+            'default' => $settings->getActiveProvider(),
             'providers' => $available,
         ]);
     }
 
-    private function resolveProvider(Request $request): string
+    private function resolveProvider(Request $request, LlmSettingsService $settings): string
     {
         $req = $request->input('provider');
         if (in_array($req, self::PROVIDERS, true)) {
             return $req;
         }
-        return config('llm.provider', 'lmstudio');
+        return $settings->getActiveProvider();
     }
 
     private function makeService(string $provider): LlmServiceContract

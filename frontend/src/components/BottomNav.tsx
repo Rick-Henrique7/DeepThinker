@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Brain, Network, MessageSquare } from 'lucide-react';
+import { Brain, Network, MessageSquare, Settings as SettingsIcon } from 'lucide-react';
 
 /**
  * Bottom nav estilo iOS — pill flutuante centralizada,
@@ -28,6 +28,10 @@ export const BottomNav: React.FC = () => {
           <NavLink to="/advogado" className={itemClass}>
             <MessageSquare className="h-5 w-5" strokeWidth={1.75} />
             <span className="text-[10px] font-medium">Advogado</span>
+          </NavLink>
+          <NavLink to="/settings" className={itemClass}>
+            <SettingsIcon className="h-5 w-5" strokeWidth={1.75} />
+            <span className="text-[10px] font-medium">IA</span>
           </NavLink>
         </div>
       </nav>
