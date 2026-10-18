@@ -179,21 +179,9 @@ cd frontend && npx playwright test   # testes de ponta a ponta no navegador, do 
 
 O CI roda os testes do backend e o build do frontend a cada push.
 
-## Roadmap
-
-- [x] Backend em Java com login e dados por usuário
-- [x] Memória da IA com RAG e grafo
-- [x] Servidor MCP
-- [x] App desktop para Windows
-- [ ] Versão online pública
-- [ ] Instalador assinado e versões para macOS e Linux
-- [ ] Importar um cofre do Obsidian
-
 ## Autor
 
 Feito por **Henrique Santos (Rick)**. [Site do projeto](https://deepthinker-app.vercel.app) · [Portfólio](https://henrique-santos-portfolio.vercel.app/) · [GitHub](https://github.com/Rick-Henrique7)
-
-Sugestões e issues são bem-vindas.
 
 ## Licença
 
