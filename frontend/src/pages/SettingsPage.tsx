@@ -1,30 +1,75 @@
 import React, { useEffect, useState } from 'react';
-import { Save, Loader2, CheckCircle2, AlertCircle, TestTube2, Eye, EyeOff, RefreshCw, Cpu, Key } from 'lucide-react';
+import { Save, Loader2, CheckCircle2, AlertCircle, TestTube2, Eye, EyeOff, RefreshCw, Cpu, Key, ExternalLink } from 'lucide-react';
 import {
   getSettings,
+  pluginIds,
   saveSettings,
   testProvider,
   type LlmProvider,
   type ProviderSnapshot,
   type SettingsSnapshot,
 } from '../lib/settings';
+import { MemorySettingsCard } from '../components/MemorySettingsCard';
+import { AppearanceCard } from '../components/AppearanceCard';
+import { McpAccessCard } from '../components/McpAccessCard';
+import { PluginsCard } from '../components/PluginsCard';
+import { isDesktop } from '../lib/desktop';
 
-const PROVIDER_LABEL: Record<LlmProvider, string> = {
-  lmstudio: 'LM Studio (local)',
-  openai: 'OpenAI Cloud',
-};
+/**
+ * Dica curta de como usar uma IA rodando no proprio PC (gratis e offline).
+ * Fechada por padrao: so abre quem quiser saber.
+ */
+function LocalModelHint() {
+  const code = 'px-1 rounded bg-neutral-800 text-neutral-300';
+  return (
+    <details className="group text-xs text-neutral-500">
+      <summary className="cursor-pointer select-none text-neutral-400 hover:text-white">
+        Rodar a IA no seu computador, de graça e sem internet
+      </summary>
+      <ul className="mt-2 space-y-1.5 list-disc pl-4">
+        <li>
+          <span className="text-neutral-300">LM Studio:</span> instale pelo site lmstudio.ai, baixe um modelo e ligue o servidor local (aba Developer). Aqui, escolha{' '}
+          <span className="text-neutral-300">LM Studio (local)</span> e digite o nome do modelo.
+        </li>
+        <li>
+          <span className="text-neutral-300">Ollama:</span> rode <code className={code}>ollama pull llama3.2</code>. Aqui,
+          escolha <span className="text-neutral-300">Personalizado</span> com o endereço{' '}
+          <code className={code}>http://localhost:11434/v1</code> e o modelo <code className={code}>llama3.2</code>.
+        </li>
+        <li>
+          {isDesktop()
+            ? 'No app desktop isso já funciona direto.'
+            : 'Funciona no app desktop ou rodando o Deep thinker no seu PC. Na versão publicada na internet, o servidor não alcança o seu computador.'}
+        </li>
+      </ul>
+    </details>
+  );
+}
+
+/** Nome do plugin; o backend Java manda "label", o antigo nao. */
+function labelOf(snap: SettingsSnapshot | null, id: LlmProvider): string {
+  return snap?.providers[id]?.label ?? id;
+}
 
 type Feedback =
   | { kind: 'success'; message: string }
   | { kind: 'error'; message: string }
+  | { kind: 'info'; message: string }
   | null;
 
+/** O plugin tem o mínimo para funcionar (chave, se exigida)? Mesmo critério do selo "pronto". */
+function isReady(snap: SettingsSnapshot | null, id: LlmProvider): boolean {
+  const info = snap?.providers[id];
+  return info?.configured ?? (!!info?.has_api_key || id === 'lmstudio');
+}
+
 /**
- * Settings / IA — edicao de provider, modelo, API key e URL.
+ * Settings / IA — escolha do plugin de IA (OpenAI, Claude, Gemini, Groq...),
+ * modelo, API key e URL.
  *
- * Persistencia no backend via PUT /api/settings/llm; o backend resolve
- * a chave lendo DB -> .env (fallback). Mudancas tem efeito imediato,
- * sem precisar restart do PHP.
+ * A tela e montada a partir da "ficha" de cada plugin que o backend manda
+ * (label, se exige chave, se o endereco e editavel...). Para aparecer um
+ * provedor novo aqui basta cadastra-lo no backend (PluginCatalog.java).
  */
 export function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -66,7 +111,26 @@ export function SettingsPage() {
     load();
   }, []);
 
-  // Trocar provider → recarrega valores daquela aba
+  /**
+   * Clique num provedor ou num modelo da lista: salva na hora, como a tela promete.
+   * Antes só o botão Salvar gravava, e quem trocava de tela perdia a escolha sem aviso.
+   * Atualiza só o retrato do servidor; o que a pessoa está digitando (chave, URL) fica.
+   */
+  const quickSave = async (payload: Record<string, string>, message: string) => {
+    setSaving(true);
+    setFeedback(null);
+    try {
+      const res = await saveSettings(payload);
+      setSnapshot(res.settings);
+      setFeedback({ kind: 'success', message });
+    } catch (e) {
+      setFeedback({ kind: 'error', message: (e as Error).message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Trocar provider → recarrega valores daquela aba e, se ele já está pronto, ativa
   const onProviderChange = (next: LlmProvider) => {
     if (!snapshot) return;
     setProvider(next);
@@ -75,6 +139,26 @@ export function SettingsPage() {
     setApiKey('');
     setOrganization(p.organization ? p.organization.replace(/^\*+/, '') : '');
     setBaseUrl(p.base_url ?? '');
+    if (next === snapshot.active_provider) {
+      setFeedback(null);
+    } else if (isReady(snapshot, next)) {
+      quickSave({ provider: next }, `${labelOf(snapshot, next)} agora é a IA ativa.`);
+    } else {
+      // Sem chave ainda: ativar agora deixaria a IA sem funcionar
+      setFeedback({
+        kind: 'info',
+        message: `Preencha os dados de ${labelOf(snapshot, next)} e clique em Salvar para ativá-lo.`,
+      });
+    }
+  };
+
+  const onPickModel = (m: string) => {
+    setModel(m);
+    if (!snapshot) return;
+    // Só salva sozinho se este provedor já é o ativo ou está pronto para ser
+    if (provider === snapshot.active_provider || isReady(snapshot, provider)) {
+      quickSave({ provider, model: m }, `Modelo ${m} salvo para ${labelOf(snapshot, provider)}.`);
+    }
   };
 
   const onSave = async () => {
@@ -82,14 +166,11 @@ export function SettingsPage() {
     setFeedback(null);
     try {
       const payload: Record<string, string> = { provider };
+      const info = snapshot?.providers[provider];
       if (model.trim()) payload.model = model.trim();
-      if (provider === 'openai') {
-        if (apiKey.trim()) payload.api_key = apiKey.trim();
-        if (organization.trim()) payload.organization = organization.trim();
-      } else {
-        if (baseUrl.trim()) payload.base_url = baseUrl.trim();
-        if (apiKey.trim()) payload.api_key = apiKey.trim();
-      }
+      if (apiKey.trim()) payload.api_key = apiKey.trim();
+      if (info?.base_url_editable && baseUrl.trim()) payload.base_url = baseUrl.trim();
+      if (provider === 'openai' && organization.trim()) payload.organization = organization.trim();
       const res = await saveSettings(payload);
       applySnapshot(res.settings);
       setApiKey('');
@@ -109,7 +190,7 @@ export function SettingsPage() {
       if (r.ok) {
         setFeedback({
           kind: 'success',
-          message: `Conexao OK com ${PROVIDER_LABEL[r.provider]}. Resposta: "${(r.reply ?? '').slice(0, 80)}"`,
+          message: `Conexao OK com ${labelOf(snapshot, r.provider)}. Resposta: "${(r.reply ?? '').slice(0, 80)}"`,
         });
       } else {
         setFeedback({ kind: 'error', message: r.error ?? 'Falha desconhecida.' });
@@ -131,6 +212,13 @@ export function SettingsPage() {
   }
 
   const currentSnap: ProviderSnapshot | undefined = snapshot?.providers[provider];
+  // Algo na tela ainda não foi gravado no servidor?
+  const dirty =
+    !!snapshot &&
+    (provider !== snapshot.active_provider ||
+      model.trim() !== (currentSnap?.model ?? '') ||
+      apiKey.trim() !== '' ||
+      (!!currentSnap?.base_url_editable && baseUrl.trim() !== (currentSnap?.base_url ?? '')));
   const catalog = snapshot?.catalog[provider] ?? [];
 
   return (
@@ -143,6 +231,8 @@ export function SettingsPage() {
         </p>
       </header>
 
+      <AppearanceCard />
+
       {/* Provider */}
       <section className="bg-neutral-900/70 border border-neutral-800 rounded-2xl p-4 sm:p-5 space-y-3">
         <div className="flex items-center gap-2 text-sm font-medium text-neutral-300">
@@ -150,9 +240,9 @@ export function SettingsPage() {
           Provedor ativo
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {(['lmstudio', 'openai'] as LlmProvider[]).map((p) => {
+          {(snapshot ? pluginIds(snapshot) : []).map((p) => {
             const info = snapshot?.providers[p];
-            const available = info?.has_api_key ?? (p === 'lmstudio');
+            const ready = isReady(snapshot, p);
             const active = p === provider;
             return (
               <button
@@ -167,23 +257,21 @@ export function SettingsPage() {
                 ].join(' ')}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-white text-sm">{PROVIDER_LABEL[p]}</span>
+                  <span className="font-medium text-white text-sm">{labelOf(snapshot, p)}</span>
                   <span
                     className={[
                       'text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full',
-                      available
+                      ready
                         ? 'bg-emerald-500/15 text-emerald-400'
                         : 'bg-neutral-800 text-neutral-500',
                     ].join(' ')}
                   >
-                    {available ? 'pronto' : 'faltam dados'}
+                    {ready ? 'pronto' : 'faltam dados'}
                   </span>
                 </div>
-                <p className="text-xs text-neutral-500 mt-1">
-                  {p === 'lmstudio'
-                    ? 'Servidor local em http://localhost:1234/v1'
-                    : 'api.openai.com (cobrado por token)'}
-                </p>
+                {info?.description && (
+                  <p className="text-xs text-neutral-500 mt-1">{info.description}</p>
+                )}
                 {info?.model && (
                   <p className="text-[11px] text-neutral-600 mt-1 truncate">
                     modelo padrao: {info.model}
@@ -193,6 +281,7 @@ export function SettingsPage() {
             );
           })}
         </div>
+        <LocalModelHint />
       </section>
 
       {/* Modelo + credenciais */}
@@ -203,7 +292,7 @@ export function SettingsPage() {
             type="text"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="ex: gpt-4o-mini"
+            placeholder="nome do modelo"
             className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
           />
           {catalog.length > 0 && (
@@ -212,9 +301,9 @@ export function SettingsPage() {
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setModel(m)}
+                  onClick={() => onPickModel(m)}
                   className={[
-                    'text-xs px-2 py-1 rounded-full border transition-colors',
+                    'text-xs min-h-[44px] fino:min-h-0 px-2 py-1 rounded-full border transition-colors',
                     model === m
                       ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
                       : 'border-neutral-800 text-neutral-400 hover:text-white hover:bg-neutral-900',
@@ -227,95 +316,105 @@ export function SettingsPage() {
           )}
         </div>
 
-        {provider === 'openai' ? (
-          <>
-            <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider flex items-center justify-between">
-                <span>API key (OpenAI)</span>
-                {currentSnap?.has_api_key && (
-                  <span className="text-[10px] text-emerald-400 normal-case tracking-normal font-normal">
-                    ja configurada: {currentSnap.api_key_masked}
-                  </span>
-                )}
-              </label>
-              <div className="mt-1 flex items-stretch gap-1">
-                <div className="relative flex-1">
-                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600" strokeWidth={1.75} />
-                  <input
-                    type={showKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder={currentSnap?.has_api_key ? '•••••••••••• (manter atual)' : 'sk-proj-...'}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
-                    autoComplete="off"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  className="px-3 bg-neutral-900 border border-neutral-800 rounded-xl text-neutral-400 hover:text-white"
-                  title={showKey ? 'Ocultar' : 'Mostrar'}
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-[11px] text-neutral-600 mt-1">
-                Para revogar, basta gerar uma nova no painel da OpenAI e colar aqui.
-                A chave fica salva apenas no backend.
-              </p>
-            </div>
-
-            <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider">
-                Organization ID (opcional)
-              </label>
-              <input
-                type="text"
-                value={organization}
-                onChange={(e) => setOrganization(e.target.value)}
-                placeholder="org-..."
-                className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider">
-                Base URL (LM Studio)
-              </label>
-              <input
-                type="text"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="http://localhost:1234/v1"
-                className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-neutral-500 uppercase tracking-wider">
-                API key (LM Studio ignora, mas pode salvar uma)
-              </label>
+        <div>
+          <label className="text-xs text-neutral-500 uppercase tracking-wider flex items-center justify-between gap-2">
+            <span>
+              API key ({labelOf(snapshot, provider)})
+              {currentSnap?.requires_api_key === false && ' (opcional)'}
+            </span>
+            {currentSnap?.has_api_key && (
+              <span className="text-[10px] text-emerald-400 normal-case tracking-normal font-normal">
+                ja configurada: {currentSnap.api_key_masked}
+              </span>
+            )}
+          </label>
+          <div className="mt-1 flex items-stretch gap-1">
+            <div className="relative flex-1">
+              <Key className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-600" strokeWidth={1.75} />
               <input
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="lm-studio"
-                className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
+                placeholder={currentSnap?.has_api_key ? '•••••••••••• (manter atual)' : 'cole sua chave aqui'}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
                 autoComplete="off"
               />
             </div>
-          </>
+            <button
+              type="button"
+              onClick={() => setShowKey((v) => !v)}
+              className="min-w-[44px] min-h-[44px] fino:min-h-0 px-3 bg-neutral-900 border border-neutral-800 rounded-xl text-neutral-400 hover:text-white"
+              title={showKey ? 'Ocultar' : 'Mostrar'}
+            >
+              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-[11px] text-neutral-600 mt-1">
+            A chave fica salva criptografada no servidor e nunca volta inteira para o navegador.
+            {currentSnap?.key_url && (
+              <>
+                {' '}
+                <a
+                  href={currentSnap.key_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-0.5 text-emerald-400 hover:text-emerald-300"
+                >
+                  Criar uma chave <ExternalLink className="h-3 w-3" />
+                </a>
+              </>
+            )}
+          </p>
+        </div>
+
+        {(currentSnap?.base_url_editable ?? provider === 'lmstudio') && (
+          <div>
+            <label className="text-xs text-neutral-500 uppercase tracking-wider">
+              Endereco da API (base URL)
+            </label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={provider === 'lmstudio' ? 'http://localhost:1234/v1' : 'https://.../v1'}
+              className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
+            />
+            <p className="text-[11px] text-neutral-600 mt-1">
+              Qualquer servico compativel com a API da OpenAI (termina em /v1, em geral).
+            </p>
+          </div>
+        )}
+
+        {provider === 'openai' && (
+          <div>
+            <label className="text-xs text-neutral-500 uppercase tracking-wider">
+              Organization ID (opcional)
+            </label>
+            <input
+              type="text"
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              placeholder="org-..."
+              className="mt-1 w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-emerald-500/60"
+            />
+          </div>
+        )}
+
+        {currentSnap?.local && !isDesktop() && (
+          <p className="text-[11px] text-amber-400/80">
+            Este plugin roda no seu computador. Com o app publicado na internet, o servidor nao alcanca
+            o seu PC: use um plugin na nuvem ou o app desktop.
+          </p>
         )}
       </section>
 
-      {/* Actions */}
-      <section className="flex flex-wrap gap-2 sticky bottom-20 lg:bottom-2 z-10">
+      {/* Ações do provedor: ficam no fluxo, logo abaixo da configuração (antes eram "sticky" e flutuavam sobre os cartões) */}
+      <section className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onSave}
           disabled={saving || loading}
-          className="flex items-center gap-2 bg-white text-black font-medium text-sm px-4 py-2.5 rounded-full hover:bg-neutral-200 disabled:opacity-50"
+          className="flex items-center gap-2 bg-white text-black font-medium text-sm px-4 min-h-[44px] rounded-full hover:bg-neutral-200 disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Salvar
@@ -324,17 +423,21 @@ export function SettingsPage() {
           type="button"
           onClick={onTest}
           disabled={testing || saving}
-          className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 text-neutral-200 font-medium text-sm px-4 py-2.5 rounded-full hover:bg-neutral-800 disabled:opacity-50"
+          className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 text-neutral-200 font-medium text-sm px-4 min-h-[44px] rounded-full hover:bg-neutral-800 disabled:opacity-50"
         >
           {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <TestTube2 className="h-4 w-4" />}
           Testar conexao
         </button>
+        {dirty && !saving && (
+          <span className="text-xs text-amber-400">Alterações não salvas</span>
+        )}
         <button
           type="button"
           onClick={load}
           disabled={loading || saving}
-          className="flex items-center gap-2 text-neutral-400 hover:text-white text-sm px-3 py-2.5 rounded-full"
+          className="flex items-center justify-center text-neutral-400 hover:text-white text-sm h-11 w-11 rounded-full"
           title="Recarregar"
+          aria-label="Recarregar"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
@@ -347,7 +450,9 @@ export function SettingsPage() {
             'flex items-start gap-2 p-3 rounded-xl text-sm border',
             feedback.kind === 'success'
               ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200'
-              : 'bg-rose-500/10 border-rose-500/40 text-rose-200',
+              : feedback.kind === 'info'
+                ? 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+                : 'bg-rose-500/10 border-rose-500/40 text-rose-200',
           ].join(' ')}
         >
           {feedback.kind === 'success' ? (
@@ -359,10 +464,15 @@ export function SettingsPage() {
         </div>
       )}
 
+      <MemorySettingsCard />
+
+      <McpAccessCard />
+
+      <PluginsCard />
+
       <p className="text-[11px] text-neutral-600 leading-relaxed">
-        Dica: credenciais do `.env` continuam valendo — valores salvos aqui
-        sobrescrevem por provider ate serem removidos. Remover e reiniciar o
-        backend restaura o `.env`.
+        Dica: chaves definidas em variaveis de ambiente no servidor (ex.: OPENAI_API_KEY)
+        continuam valendo. O que for salvo aqui tem prioridade.
       </p>
     </div>
   );

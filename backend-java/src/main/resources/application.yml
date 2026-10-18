@@ -1,0 +1,94 @@
+# Configuração padrão (desenvolvimento no seu PC).
+# Tudo em ${NOME:padrão} pode ser trocado por variável de ambiente, sem mexer no código.
+server:
+  port: ${PORT:8000}
+
+spring:
+  application:
+    name: deepthinker-api
+  datasource:
+    # H2 grava num arquivo em ./data. Em produção o perfil "prod" troca para PostgreSQL.
+    url: ${DATABASE_URL:jdbc:h2:file:./data/deepthinker;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE}
+    username: ${DATABASE_USERNAME:sa}
+    password: ${DATABASE_PASSWORD:}
+  jpa:
+    # O schema é responsabilidade do Flyway; o Hibernate só confere se bate.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  jackson:
+    # created_at em vez de createdAt, igual ao Laravel, para o React não mudar.
+    property-naming-strategy: SNAKE_CASE
+
+  servlet:
+    multipart:
+      # Tamanho máximo do upload de documentos (era 10 MB no Laravel também).
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+  threads:
+    # Threads virtuais (Java 21): cada requisição ganha uma thread leve.
+    # Ótimo para o streaming do chat, que fica muito tempo esperando a IA.
+    virtual:
+      enabled: true
+
+deepthinker:
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173,http://127.0.0.1:5173}
+  # Chave usada para criptografar as API keys salvas no banco.
+  # Em produção, defina DEEPTHINKER_SECRET com um valor longo e aleatório.
+  secret: ${DEEPTHINKER_SECRET:troque-esta-chave-em-producao}
+  auth:
+    # Quanto tempo o login dura antes de pedir a senha de novo (7d = 7 dias, 12h = 12 horas).
+    token-ttl: ${AUTH_TOKEN_TTL:7d}
+    # false = ninguém mais consegue criar conta (útil depois de criar a sua).
+    registration-enabled: ${REGISTRATION_ENABLED:true}
+  memory:
+    # Memória da IA: antes de responder, o chat busca as suas notas parecidas com a conversa
+    # e mostra para a IA (RAG). false desliga para todo mundo.
+    enabled: ${MEMORY_ENABLED:true}
+    # Modelo de embeddings multilíngue (entende português), roda dentro do Java via ONNX.
+    model-name: multilingual-e5-small
+    model-dir: ${MEMORY_MODEL_DIR:${DEEPTHINKER_DATA_DIR:./data}/models/multilingual-e5-small}
+    # Se a pasta estiver vazia, baixa o modelo (~120 MB) do Hugging Face uma vez só.
+    auto-download: ${MEMORY_AUTO_DOWNLOAD:true}
+    model-url: ${MEMORY_MODEL_URL:https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/onnx/model_quantized.onnx}
+    tokenizer-url: ${MEMORY_TOKENIZER_URL:https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/tokenizer.json}
+    query-prefix: "query: "
+    passage-prefix: "passage: "
+    # Quais notas entram, para o modelo local (os modelos por API têm os seus valores em EmbeddingCatalog).
+    # O e5 dá entre 0.80 e 0.90 para quase tudo (medido em 15/10/2026), então valem duas regras:
+    # min-score = piso; margin = só entra quem estiver a até essa distância da melhor nota.
+    min-score: ${MEMORY_MIN_SCORE:0.82}
+    margin: ${MEMORY_MARGIN:0.03}
+    top-k: ${MEMORY_TOP_K:5}
+    neighbors: ${MEMORY_NEIGHBORS:3}
+    index-on-startup: true
+  llm:
+    # Plugin ativo por padrão. Pode ser trocado pela tela de Configurações.
+    provider: ${LLM_PROVIDER:openai}
+    timeout-seconds: ${LLM_TIMEOUT:120}
+    # Chaves e ajustes por plugin vindos do ambiente (todos opcionais).
+    plugins:
+      openai:
+        api-key: ${OPENAI_API_KEY:}
+        organization: ${OPENAI_ORG_ID:}
+        model: ${OPENAI_MODEL:}
+      anthropic:
+        api-key: ${ANTHROPIC_API_KEY:}
+      gemini:
+        api-key: ${GEMINI_API_KEY:}
+      groq:
+        api-key: ${GROQ_API_KEY:}
+      openrouter:
+        api-key: ${OPENROUTER_API_KEY:}
+      deepseek:
+        api-key: ${DEEPSEEK_API_KEY:}
+      mistral:
+        api-key: ${MISTRAL_API_KEY:}
+      custom:
+        base-url: ${CUSTOM_LLM_BASE_URL:}
+        api-key: ${CUSTOM_LLM_API_KEY:}
+        model: ${CUSTOM_LLM_MODEL:}
+      lmstudio:
+        base-url: ${LMSTUDIO_BASE_URL:}
+        model: ${LMSTUDIO_MODEL:}

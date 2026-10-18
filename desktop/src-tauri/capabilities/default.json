@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissões da janela principal. O React não usa APIs do Tauri, só as básicas.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

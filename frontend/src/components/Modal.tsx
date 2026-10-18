@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -16,6 +16,16 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   size = 'md',
 }) => {
+  // Esc fecha o modal, como nos dialogos nativos.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const sizes = {
@@ -86,10 +96,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </button>
         <button
           onClick={onConfirm}
-          className={`px-4 py-2 text-sm rounded-full text-black shadow-lg transition-colors ${
+          autoFocus
+          className={`px-4 py-2 text-sm rounded-full shadow-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
             variant === 'danger'
-              ? 'bg-red-500 hover:bg-red-400'
-              : 'bg-white hover:bg-neutral-200'
+              ? 'bg-red-500 hover:bg-red-400 text-white'
+              : 'bg-white hover:bg-neutral-200 text-black'
           }`}
         >
           {confirmText}

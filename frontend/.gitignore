@@ -44,3 +44,9 @@ coverage/
 *.tmp
 *.temp
 teste.txt
+# Playwright
+test-results/
+playwright-report/
+
+# Testes nos aparelhos do DevTools
+e2e-aparelhos/

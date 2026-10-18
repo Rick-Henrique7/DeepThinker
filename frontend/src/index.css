@@ -2,24 +2,331 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/*
+ * Temas do app. O padrão é Abismo; o usuário troca em IA > Aparência (src/lib/theme.ts
+ * grava a escolha e coloca data-theme="..." no <html>).
+ *
+ * Cada variável guarda "R G B" e é usada pelo tailwind.config.js. Assim, "bg-neutral-900"
+ * é um azul-noite no Abismo, um cinza-grafite no Grafite e branco no Glaciar.
+ *
+ * - Abismo: a parte do iceberg debaixo d'água, com o azul da marca (#072f4e).
+ * - Glaciar: tema claro, papel gelo com tinta azul. A escala é invertida: "white" vira a tinta
+ *   e "black" vira o papel, por isso as telas não precisam de classes novas.
+ * - Grafite: a evolução do visual antigo, preto levemente azulado.
+ */
+:root,
+:root[data-theme='abismo'] {
   color-scheme: dark;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, 'Segoe UI', sans-serif;
+  --black: 2 7 13;
+  --white: 244 249 253;
+  --neutral-50: 243 248 252;
+  --neutral-100: 232 241 249;
+  --neutral-200: 211 226 239;
+  --neutral-300: 180 200 218;
+  --neutral-400: 143 167 189;
+  --neutral-500: 108 133 157;
+  --neutral-600: 86 112 137;
+  --neutral-700: 42 69 96;
+  --neutral-800: 23 50 76;
+  --neutral-900: 13 34 54;
+  --neutral-950: 8 26 43;
+  --accent: 156 201 245;
+  --app-bg: linear-gradient(180deg, #0a2236 0%, #05121f 38%, #02070d 100%);
+  --font-serif: 'Instrument Serif';
+  --graph-bg: 3 12 22;
+  --graph-label: 232 241 249;
+  --graph-halo: 2 7 13;
+  --graph-focus: 255 255 255;
+  /* Nós do grafo: pouco -> médio -> muito ligado; e a cor/opacidade das ligações */
+  --graph-node-1: 140 123 240;
+  --graph-node-2: 63 184 176;
+  --graph-node-3: 243 226 77;
+  --graph-link: 63 184 176;
+  --graph-link-a: 0.3;
+  --water-body: 7 47 78;
+  --water-deep: 2 8 14;
+  --water-line: 156 201 245;
+  --water-a1: 0.55;
+  --water-a2: 0.9;
+  --grain: 0.04;
+}
+
+:root[data-theme='grafite'] {
+  color-scheme: dark;
+  --black: 7 9 12;
+  --white: 255 255 255;
+  --neutral-50: 246 247 249;
+  --neutral-100: 236 236 239;
+  --neutral-200: 217 219 224;
+  --neutral-300: 192 195 202;
+  --neutral-400: 154 158 168;
+  --neutral-500: 118 122 132;
+  --neutral-600: 97 101 111;
+  --neutral-700: 47 52 60;
+  --neutral-800: 28 33 40;
+  --neutral-900: 17 22 29;
+  --neutral-950: 11 15 20;
+  --accent: 127 176 230;
+  --app-bg: linear-gradient(#07090c, #07090c);
+  --font-serif: 'Geist Variable';
+  --graph-bg: 8 10 13;
+  --graph-label: 236 236 239;
+  --graph-halo: 7 9 12;
+  --graph-focus: 255 255 255;
+  /* Nós do grafo: pouco -> médio -> muito ligado; e a cor/opacidade das ligações */
+  --graph-node-1: 140 123 240;
+  --graph-node-2: 63 184 176;
+  --graph-node-3: 243 226 77;
+  --graph-link: 63 184 176;
+  --graph-link-a: 0.3;
+  --water-body: 13 42 68;
+  --water-deep: 5 7 10;
+  --water-line: 127 176 230;
+  --water-a1: 0.5;
+  --water-a2: 0.9;
+  --grain: 0.04;
+}
+
+:root[data-theme='glaciar'] {
+  color-scheme: light;
+  --black: 233 239 244;
+  --white: 7 47 78;
+  --neutral-50: 7 47 78;
+  --neutral-100: 11 52 86;
+  --neutral-200: 18 50 78;
+  --neutral-300: 30 58 84;
+  --neutral-400: 44 72 98;
+  --neutral-500: 62 88 112;
+  --neutral-600: 92 115 136;
+  --neutral-700: 150 171 189;
+  --neutral-800: 189 205 219;
+  --neutral-900: 255 255 255;
+  --neutral-950: 244 247 250;
+  --accent: 29 111 184;
+  --app-bg: linear-gradient(180deg, #f7fafc 0%, #eef3f7 45%, #e6eef5 100%);
+  --font-serif: 'Instrument Serif';
+  --graph-bg: 250 252 254;
+  --graph-label: 7 47 78;
+  --graph-halo: 247 250 252;
+  --graph-focus: 7 47 78;
+  /* Tons mais escuros: no papel claro o amarelo e o verde-água pastel sumiam */
+  --graph-node-1: 58 12 163;
+  --graph-node-2: 247 37 133;
+  --graph-node-3: 255 109 0;
+  --graph-link: 22 60 98;
+  --graph-link-a: 0.55;
+  /* Anel branco em volta de cada nó: separa a cor do emaranhado de ligações */
+  --graph-ring-a: 0;
+  --water-body: 29 111 184;
+  --water-deep: 7 47 78;
+  --water-line: 29 111 184;
+  --water-a1: 0.32;
+  --water-a2: 0.5;
+  --grain: 0.025;
+}
+
+/* Cores de estado (verde, vermelho, azul, âmbar): no tema claro a escala inverte,
+   para "text-emerald-300" continuar legível sobre fundo claro. */
+:root {
+  --red-50: 254 242 242;
+  --red-100: 254 226 226;
+  --red-200: 254 202 202;
+  --red-300: 252 165 165;
+  --red-400: 248 113 113;
+  --red-500: 239 68 68;
+  --red-600: 220 38 38;
+  --red-700: 185 28 28;
+  --red-800: 153 27 27;
+  --red-900: 127 29 29;
+  --red-950: 69 10 10;
+  --emerald-50: 236 253 245;
+  --emerald-100: 209 250 229;
+  --emerald-200: 167 243 208;
+  --emerald-300: 110 231 183;
+  --emerald-400: 52 211 153;
+  --emerald-500: 16 185 129;
+  --emerald-600: 5 150 105;
+  --emerald-700: 4 120 87;
+  --emerald-800: 6 95 70;
+  --emerald-900: 6 78 59;
+  --emerald-950: 2 44 34;
+  --sky-50: 240 249 255;
+  --sky-100: 224 242 254;
+  --sky-200: 186 230 253;
+  --sky-300: 125 211 252;
+  --sky-400: 56 189 248;
+  --sky-500: 14 165 233;
+  --sky-600: 2 132 199;
+  --sky-700: 3 105 161;
+  --sky-800: 7 89 133;
+  --sky-900: 12 74 110;
+  --sky-950: 8 47 73;
+  --amber-50: 255 251 235;
+  --amber-100: 254 243 199;
+  --amber-200: 253 230 138;
+  --amber-300: 252 211 77;
+  --amber-400: 251 191 36;
+  --amber-500: 245 158 11;
+  --amber-600: 217 119 6;
+  --amber-700: 180 83 9;
+  --amber-800: 146 64 14;
+  --amber-900: 120 53 15;
+  --amber-950: 69 26 3;
+}
+
+:root[data-theme='glaciar'] {
+  --red-50: 69 10 10;
+  --red-100: 127 29 29;
+  --red-200: 153 27 27;
+  --red-300: 185 28 28;
+  --red-400: 220 38 38;
+  --red-500: 239 68 68;
+  --red-600: 248 113 113;
+  --red-700: 252 165 165;
+  --red-800: 254 202 202;
+  --red-900: 254 226 226;
+  --red-950: 254 242 242;
+  --emerald-50: 2 44 34;
+  --emerald-100: 6 78 59;
+  --emerald-200: 6 95 70;
+  --emerald-300: 4 120 87;
+  --emerald-400: 5 150 105;
+  --emerald-500: 16 185 129;
+  --emerald-600: 52 211 153;
+  --emerald-700: 110 231 183;
+  --emerald-800: 167 243 208;
+  --emerald-900: 209 250 229;
+  --emerald-950: 236 253 245;
+  --sky-50: 8 47 73;
+  --sky-100: 12 74 110;
+  --sky-200: 7 89 133;
+  --sky-300: 3 105 161;
+  --sky-400: 2 132 199;
+  --sky-500: 14 165 233;
+  --sky-600: 56 189 248;
+  --sky-700: 125 211 252;
+  --sky-800: 186 230 253;
+  --sky-900: 224 242 254;
+  --sky-950: 240 249 255;
+  --amber-50: 69 26 3;
+  --amber-100: 120 53 15;
+  --amber-200: 146 64 14;
+  --amber-300: 180 83 9;
+  --amber-400: 217 119 6;
+  --amber-500: 245 158 11;
+  --amber-600: 251 191 36;
+  --amber-700: 252 211 77;
+  --amber-800: 253 230 138;
+  --amber-900: 254 243 199;
+  --amber-950: 255 251 235;
+}
+
+/*
+ * Cores dos gráficos (Painel e blocos ```grafico nas notas).
+ * Não são escolhidas "no olho": é a paleta de referência de visualização de dados, conferida
+ * com um validador contra o fundo de cada tema (faixa de luminosidade, saturação mínima,
+ * separação para daltonismo e contraste). A ordem das 8 cores faz parte da segurança para
+ * daltônicos: a série 1 é sempre azul, a 2 laranja, e assim por diante, nunca embaralhar.
+ * Temas escuros usam os tons "escuros" e o Glaciar os "claros" da mesma paleta.
+ */
+:root {
+  --series-1: 57 135 229;
+  --series-2: 217 89 38;
+  --series-3: 25 158 112;
+  --series-4: 201 133 0;
+  --series-5: 213 81 129;
+  --series-6: 0 131 0;
+  --series-7: 144 133 233;
+  --series-8: 230 103 103;
+  /* Mapa de calor (dias com notas): um só tom de azul, mais claro = mais notas no escuro. */
+  --heat-1: 24 79 149;
+  --heat-2: 37 106 191;
+  --heat-3: 57 135 229;
+  --heat-4: 134 182 239;
+}
+
+:root[data-theme='glaciar'] {
+  --series-1: 42 120 214;
+  --series-2: 235 104 52;
+  --series-3: 27 175 122;
+  --series-4: 237 161 0;
+  --series-5: 232 123 164;
+  --series-6: 0 131 0;
+  --series-7: 98 80 214;
+  --series-8: 227 73 72;
+  /* No claro inverte: mais notas = azul mais escuro. */
+  --heat-1: 109 167 236;
+  --heat-2: 57 135 229;
+  --heat-3: 28 92 171;
+  --heat-4: 13 54 107;
+}
+
+/*
+ * As 6 cores de cartão e seta do Canvas, na mesma ordem do Obsidian (1 vermelho, 2 laranja,
+ * 3 amarelo, 4 verde, 5 ciano, 6 roxo), para um .canvas importado manter as cores.
+ * Reaproveitam a paleta dos gráficos; só o ciano é novo.
+ */
+:root {
+  --canvas-1: var(--series-8);
+  --canvas-2: var(--series-2);
+  --canvas-3: var(--series-4);
+  --canvas-4: var(--series-3);
+  --canvas-5: 0 158 184;
+  --canvas-6: var(--series-7);
+}
+
+:root[data-theme='glaciar'] {
+  --canvas-5: 0 132 160;
+}
+
+:root {
+  --bg: rgb(var(--black));
+  --ink: rgb(var(--neutral-100));
+  --ink-soft: rgb(var(--neutral-400));
+  --line: rgb(var(--white) / 0.08);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  font-family: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html,
 body {
-  background: #000000;
+  background: rgb(var(--black));
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* O fundo do tema (no Abismo, o degradê da superfície até o fundo do mar) fica parado ao rolar */
+  background-image: var(--app-bg);
+  background-attachment: fixed;
+}
+
+/* Grão sutil por cima de tudo, o mesmo do site: tira o ar de "digital chapado". */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::selection {
+  background: rgb(var(--accent));
+  color: rgb(var(--black));
+}
+
+/* Foco visível só para quem navega pelo teclado (não aparece ao clicar com o mouse). */
+:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
 }
 
 * {
@@ -29,4 +336,190 @@ body {
 /* Safe-area para iOS */
 .safe-area-pb {
   padding-bottom: max(0.5rem, var(--safe-bottom));
+}
+
+/* Animações curtas do login e do aviso de boas-vindas */
+@keyframes fade-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-[fade-in'], [class*='animate-[toast-'] { animation-duration: 1ms !important; }
+}
+
+/*
+ * Nota renderizada (NoteMarkdown). O Tailwind zera o estilo de h1, ul, table...,
+ * então aqui devolvemos uma tipografia de leitura, usando as cores do tema.
+ */
+.note-markdown {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: rgb(var(--neutral-200));
+  overflow-wrap: anywhere;
+}
+.note-markdown > * + * { margin-top: 0.75em; }
+.note-markdown h1, .note-markdown h2, .note-markdown h3, .note-markdown h4 {
+  color: rgb(var(--white));
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.2em;
+}
+.note-markdown h1 { font-size: 1.35rem; }
+.note-markdown h2 { font-size: 1.15rem; }
+.note-markdown h3 { font-size: 1rem; }
+.note-markdown > :first-child { margin-top: 0; }
+.note-markdown ul { list-style: disc; padding-left: 1.3em; }
+.note-markdown ol { list-style: decimal; padding-left: 1.4em; }
+.note-markdown li + li { margin-top: 0.2em; }
+.note-markdown li.task-list-item { list-style: none; margin-left: -1.3em; }
+.note-markdown li.task-list-item input { margin-right: 0.45em; accent-color: rgb(var(--accent)); }
+.note-markdown strong { color: rgb(var(--white)); font-weight: 600; }
+.note-markdown blockquote {
+  border-left: 2px solid rgb(var(--accent) / 0.6);
+  padding: 0.15em 0 0.15em 0.85em;
+  color: rgb(var(--neutral-300));
+  font-style: italic;
+}
+.note-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: rgb(var(--neutral-800) / 0.7);
+  padding: 0.1em 0.35em;
+  border-radius: 0.35em;
+}
+.note-markdown pre {
+  background: rgb(var(--neutral-900));
+  border: 1px solid rgb(var(--neutral-800));
+  border-radius: 0.75rem;
+  padding: 0.75em 0.9em;
+  overflow-x: auto;
+}
+.note-markdown pre code { background: none; padding: 0; }
+.note-markdown table { width: 100%; border-collapse: collapse; font-size: 0.875rem; display: block; overflow-x: auto; }
+.note-markdown th, .note-markdown td { border: 1px solid rgb(var(--neutral-800)); padding: 0.35em 0.6em; text-align: left; }
+.note-markdown th { color: rgb(var(--white)); font-weight: 600; background: rgb(var(--neutral-900)); }
+.note-markdown hr { border-color: rgb(var(--neutral-800)); }
+/*
+ * Gráficos e notas embutidas dentro da nota (.not-prose): as regras de texto acima
+ * (bolinha nas listas, borda nas tabelas, título grande) não valem para as peças deles.
+ */
+.note-markdown .not-prose ul, .note-markdown .not-prose ol { list-style: none; padding-left: 0; }
+.note-markdown .not-prose li + li { margin-top: 0; }
+.note-markdown .not-prose h3 { font-size: 0.875rem; font-weight: 500; margin-top: 0; }
+.note-markdown .not-prose table { display: table; font-size: 0.875rem; }
+.note-markdown .not-prose th, .note-markdown .not-prose td { border: 0; padding: 0.375rem 0.75rem; }
+.note-markdown .not-prose th { background: rgb(var(--neutral-900)); color: rgb(var(--neutral-400)); font-weight: 500; }
+
+/* #tag dentro do texto e nos painéis: uma "pílula" discreta na cor de destaque do tema. */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.45em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: rgb(var(--accent));
+  background: rgb(var(--accent) / 0.12);
+  transition: background-color 150ms ease;
+}
+.tag-chip:hover { background: rgb(var(--accent) / 0.22); }
+
+/* ------------------------------------------------------------------ Leitor (PDF e texto)
+ * As páginas ficam com cara de papel (claras) em todos os temas, como o próprio PDF.
+ * As cores do marca-texto usam mix-blend-mode: multiply, que "tinge" o papel sem apagar
+ * as letras pretas, igual a um marca-texto de verdade.
+ */
+:root {
+  --hl-amarelo: 255 214 10;
+  --hl-verde: 102 214 120;
+  --hl-azul: 92 178 255;
+  --hl-rosa: 255 128 182;
+}
+.paper { background: #fdfcf9; color: #1d2329; }
+.hl { position: absolute; border-radius: 2px; mix-blend-mode: multiply; pointer-events: none; }
+.hl-amarelo { background: rgb(var(--hl-amarelo) / 0.5); }
+.hl-verde { background: rgb(var(--hl-verde) / 0.45); }
+.hl-azul { background: rgb(var(--hl-azul) / 0.42); }
+.hl-rosa { background: rgb(var(--hl-rosa) / 0.42); }
+.hl-active { outline: 2px solid rgb(var(--accent)); outline-offset: 1px; }
+mark.hl-text { color: inherit; border-radius: 2px; cursor: pointer; padding: 0.05em 0; }
+mark.hl-text.hl-active { outline-offset: 0; }
+@keyframes hl-flash { 0%, 100% { filter: none; } 50% { filter: brightness(0.82) saturate(1.6); } }
+.hl-flash { animation: hl-flash 0.6s ease-in-out 2; }
+
+/* Camada de texto do pdf.js (versão "sem aninhamento" das regras do pdf_viewer.css dele). */
+.pdf-page { --scale-round-x: 1px; --scale-round-y: 1px; --min-font-size: 1; }
+.pdf-page .textLayer {
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 0;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.pdf-page .textLayer span,
+.pdf-page .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.pdf-page .textLayer > :not(.markedContent),
+.pdf-page .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.pdf-page .textLayer .markedContent { display: contents; }
+.pdf-page .textLayer ::selection { background: rgb(0 90 255 / 0.28); color: transparent; }
+.pdf-page .textLayer br::selection { background: transparent; }
+.pdf-page .textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.pdf-page .textLayer.selecting .endOfContent { top: 0; }
+
+/* Fundo do grafo: brilho suave no centro (cores dos nós), grade de pontos bem fraca e
+   bordas escurecidas. O canvas é transparente, então isso aparece por trás dos nós.
+   Usa as variáveis do tema, então funciona no Abismo, Grafite e Glaciar. */
+.graph-backdrop {
+  background-color: rgb(var(--graph-bg));
+  background-image:
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, rgb(var(--graph-halo) / 0.55) 100%),
+    radial-gradient(ellipse 45% 40% at 50% 48%, rgb(var(--graph-node-2) / 0.10), transparent 70%),
+    radial-gradient(ellipse 35% 30% at 70% 30%, rgb(var(--graph-node-1) / 0.08), transparent 70%),
+    radial-gradient(ellipse 30% 28% at 28% 72%, rgb(var(--accent) / 0.07), transparent 70%),
+    radial-gradient(circle at 1px 1px, rgb(var(--graph-label) / 0.07) 1px, transparent 1.5px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 22px 22px;
+}
+
+/* No Glaciar o papel é claro: brilho e pontos precisam de mais força para aparecer,
+   e a borda do quadro escurece em vez de clarear. */
+:root[data-theme='glaciar'] .graph-backdrop {
+  background-image:
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, rgb(var(--graph-link) / 0.10) 100%),
+    radial-gradient(ellipse 45% 40% at 50% 48%, rgb(var(--accent) / 0.10), transparent 70%),
+    radial-gradient(ellipse 35% 30% at 70% 30%, rgb(var(--graph-node-1) / 0.06), transparent 70%),
+    radial-gradient(ellipse 30% 28% at 28% 72%, rgb(var(--graph-node-2) / 0.05), transparent 70%),
+    radial-gradient(circle at 1px 1px, rgb(var(--graph-label) / 0.16) 1px, transparent 1.5px);
 }

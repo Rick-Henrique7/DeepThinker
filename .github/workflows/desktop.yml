@@ -1,0 +1,61 @@
+# Gera o instalador do app desktop e publica nos Releases do GitHub.
+#
+# Como usar: crie uma tag de versão e envie.
+#   git tag v0.1.0
+#   git push origin v0.1.0
+# Uns 15 minutos depois o instalador aparece em github.com/Rick-Henrique7/DeepThinker/releases,
+# que é para onde aponta o botão "Baixar para Windows" do site.
+name: App desktop
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # para criar o Release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 21 (compila o backend e gera o Java embutido)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Rust (a casca da janela Tauri)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache do Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Dependências
+        run: |
+          npm ci --prefix frontend
+          npm install --prefix desktop
+
+      - name: Frontend e backend
+        working-directory: desktop
+        run: |
+          npm run frontend
+          npm run backend
+
+      - name: Instalador e Release
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Deep thinker ${{ github.ref_name }}"
+          releaseBody: "Baixe o arquivo terminado em -setup.exe e abra para instalar."
+          releaseDraft: false

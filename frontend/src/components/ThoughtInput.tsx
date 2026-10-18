@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Mic, MicOff, Sparkles, Trash2, Undo2 } from 'lucide-react';
 import { useSpeechToText } from '../hooks/useSpeechToText';
 
@@ -16,30 +16,18 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   // Histórico de estados anteriores para desfazer a última ação
   const [history, setHistory] = useState<{ title: string; text: string }[]>([]);
-  const { isListening, transcript, error, startListening, stopListening, resetTranscript } =
-    useSpeechToText('pt-BR');
-
-  useEffect(() => {
-    if (!transcript || typeof transcript !== 'string') return;
-
+  // Cada frase final ditada entra uma vez no texto (e pode ser desfeita).
+  const { isListening, interim, error, toggleListening } = useSpeechToText('pt-BR', (spoken) => {
     setHistory((prev) => [...prev, { title, text }]);
-    setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
-    resetTranscript();
-  }, [transcript, resetTranscript, title, text]);
+    setText((prev) => (prev ? `${prev} ${spoken}` : spoken));
+  });
 
-  const handleToggleMic = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
-  };
+  const handleToggleMic = toggleListening;
 
   const handleClear = () => {
     setHistory((prev) => [...prev, { title, text }]);
     setTitle('');
     setText('');
-    resetTranscript();
   };
 
   // Desfaz a última ação (inserção de link, ditado por voz ou limpeza)
@@ -104,7 +92,8 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
             onChange={(e) => setText(e.target.value)}
             placeholder="Digite ou dite uma ideia. Use [[Título]] para conectar notas..."
             rows={6}
-            className="w-full resize-none rounded-xl bg-black border-0 px-3 py-2.5 sm:px-4 sm:py-3 min-h-[110px] sm:min-h-[160px] md:min-h-[200px] text-sm sm:text-base leading-relaxed text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-700"
+            /* Altura = tela menos o resto da página: a caixa cresce para ocupar o espaço livre */
+            className="w-full resize-none rounded-xl bg-black border-0 px-3 pt-2.5 pb-12 sm:px-4 sm:pt-3 sm:pb-12 fino:pb-9 h-[max(180px,calc(100dvh-30rem))] lg:h-[max(240px,calc(100dvh-32rem))] baixa:h-[max(110px,calc(100dvh-15rem))] text-sm sm:text-base leading-relaxed text-white placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-neutral-700"
           />
 
           {isListening && (
@@ -118,7 +107,7 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
             type="button"
             onClick={handleInsertLink}
             title="Inserir link [[ ]]"
-            className="absolute bottom-2 right-2 rounded-md px-2 py-1 text-xs font-mono text-neutral-500 hover:text-white transition-colors"
+            className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 rounded-md px-2 py-1 text-xs font-mono text-neutral-500 hover:text-white transition-colors"
           >
             [[ ]]
           </button>
@@ -128,11 +117,17 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
             onClick={handleUndo}
             disabled={history.length === 0}
             title="Desfazer"
-            className="absolute bottom-2 left-2 rounded-md p-1 text-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="absolute bottom-1 left-1 sm:bottom-2 sm:left-2 flex items-center justify-center min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 rounded-md p-1 text-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Undo2 className="h-4 w-4" />
           </button>
         </div>
+
+        {isListening && (
+          <p className="px-1 text-xs text-neutral-500 italic min-h-[1rem]" aria-live="polite">
+            {interim || 'Ouvindo...'}
+          </p>
+        )}
 
         {error && (
           <p className="rounded-lg bg-amber-500/10 p-2.5 text-xs text-amber-400">
@@ -144,7 +139,7 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
           <button
             type="button"
             onClick={handleToggleMic}
-            className={`flex items-center justify-center gap-2 rounded-full px-3 py-2 sm:px-4 text-sm font-medium transition-all flex-shrink-0 ${
+            className={`flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 rounded-full px-3 py-2 sm:px-4 text-sm font-medium transition-all flex-shrink-0 ${
               isListening
                 ? 'bg-red-500 text-white'
                 : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
@@ -159,7 +154,7 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
               <button
                 type="button"
                 onClick={handleClear}
-                className="rounded-full p-2 text-neutral-500 hover:text-white transition-colors flex-shrink-0"
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 rounded-full p-2 text-neutral-500 hover:text-white transition-colors flex-shrink-0"
                 title="Limpar"
               >
                 <Trash2 className="h-4 w-4" />
@@ -169,7 +164,7 @@ export const ThoughtInput: React.FC<ThoughtInputProps> = ({
             <button
               type="submit"
               disabled={!text.trim() || isLoading}
-              className="flex items-center gap-1.5 rounded-full bg-white text-black px-3 py-2 sm:px-4 text-sm font-semibold transition-all hover:bg-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+              className="flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 rounded-full bg-white text-black px-3 py-2 sm:px-4 text-sm font-semibold transition-all hover:bg-neutral-200 disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
             >
               {isLoading ? (
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black border-t-transparent" />

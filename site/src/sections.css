@@ -1,0 +1,400 @@
+/* ==========================================================================
+   Seções novas do site (17/10): link do Guia e Privacidade (Ferramentas: tools.css).
+   Ficam num arquivo separado do styles.css para não misturar com os ajustes
+   de responsividade que outra conversa faz lá. Usam os mesmos tokens de cor.
+   ========================================================================== */
+
+/* "Guia" no menu: no computador fica junto dos outros links; no celular, onde o menu
+   some, ele aparece sozinho ao lado do botão do GitHub. */
+.nav__guide {
+  display: none;
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+@media (max-width: 900px) {
+  .nav__guide {
+    display: inline-flex;
+  }
+}
+
+/* Link discreto dentro de um card do bento */
+.card__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--accent);
+}
+.card__link::after {
+  content: '→';
+  transition: transform 200ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .card__link:hover::after {
+    transform: translateX(3px);
+  }
+}
+
+/* Marca-texto nos nomes de arquivo do card do Leitor */
+.files .hl {
+  border-color: transparent;
+  color: var(--ink);
+}
+.files .hl--y {
+  background: rgb(243 226 77 / 0.22);
+}
+.files .hl--b {
+  background: rgb(var(--accent-rgb) / 0.2);
+}
+
+/* ---------- Privacidade ---------- */
+
+.privacy {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: clamp(40px, 6vw, 96px);
+  align-items: start;
+}
+.privacy__copy .btn {
+  margin-top: 32px;
+}
+.privacy__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+.privacy__list li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  column-gap: 16px;
+  row-gap: 4px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+/* Um "visto" desenhado em CSS antes de cada item */
+.privacy__list li::before {
+  content: '';
+  grid-row: span 2;
+  width: 12px;
+  height: 7px;
+  margin-top: 7px;
+  border-left: 1.5px solid var(--accent);
+  border-bottom: 1.5px solid var(--accent);
+  transform: rotate(-45deg);
+}
+.privacy__list b {
+  font-weight: 500;
+  font-size: 17px;
+}
+.privacy__list span {
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+@media (max-width: 900px) {
+  .privacy {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Rodapé ---------- */
+
+.footer__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.footer__links a {
+  transition: color 200ms var(--ease-out);
+}
+
+/* ---------- Botão do portfólio no menu ----------
+   Precisa chamar atenção sem brigar com o "Baixar" do topo. Três camadas:
+   1. uma borda em gradiente (as cores do grafo: violeta, verde-água, amarelo) que gira devagar;
+   2. um brilho com as mesmas cores, que acende no hover;
+   3. uma faixa de luz que atravessa o botão de tempos em tempos.
+
+   Desempenho: a borda NÃO anima a cor nem o ângulo do gradiente (isso obrigaria o
+   navegador a repintar o botão 60 vezes por segundo). O gradiente é pintado uma vez
+   num quadrado grande que só GIRA (transform), e quem gira é a placa de vídeo, sem
+   repintar nada. Uma máscara deixa aparecer só o anel de 1,5 px da borda. */
+
+.nav__end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.folio {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px 0 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--ink);
+  background: rgb(var(--ink-rgb) / 0.06);
+  overflow: hidden;
+  animation: folio-nudge 900ms var(--ease-out) 2.4s 2 both;
+  transition: transform 200ms var(--ease-out);
+}
+/* Anel da borda: a máscara recorta só 1,5 px nas bordas; o filho <i> gira por baixo */
+.folio__ring {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1.5px;
+  border-radius: inherit;
+  overflow: hidden;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.folio__ring i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 240px;
+  height: 240px;
+  margin: -120px 0 0 -120px;
+  background: conic-gradient(
+    rgb(var(--graph-node-1)),
+    rgb(var(--graph-node-2)),
+    rgb(var(--graph-node-3)),
+    rgb(var(--graph-node-1))
+  );
+  animation: folio-spin 5s linear infinite;
+  will-change: transform;
+}
+/* Faixa de luz que atravessa o botão a cada 4,5 s (também só transform) */
+.folio::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.22) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: folio-shine 4.5s var(--ease-in-out) 1.5s infinite;
+}
+.folio__short {
+  display: none;
+}
+.folio__arrow {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 220ms var(--ease-out);
+}
+.folio:active {
+  transform: scale(0.97);
+}
+.folio:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .folio:hover {
+    background: rgb(var(--ink-rgb) / 0.1);
+    box-shadow:
+      0 0 24px -4px rgb(var(--graph-node-1) / 0.55),
+      0 0 32px -8px rgb(var(--graph-node-2) / 0.5);
+  }
+  .folio:hover .folio__arrow {
+    transform: translate(2px, -2px);
+  }
+}
+
+@keyframes folio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes folio-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  30%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+/* "Cutucão" logo depois que a página aparece: o botão cresce um pouco duas vezes */
+@keyframes folio-nudge {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: scale(1.07);
+  }
+}
+
+/* Celular: o GitHub vira só o ícone e o portfólio usa o nome curto, para caber tudo */
+@media (max-width: 640px) {
+  .nav__end {
+    gap: 8px;
+  }
+  .nav__gh {
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+  }
+  .nav__gh span {
+    display: none;
+  }
+  .folio__long {
+    display: none;
+  }
+  .folio__short {
+    display: inline;
+  }
+  .folio {
+    padding: 0 12px 0 14px;
+  }
+}
+/* Telas bem estreitas: o "Guia" sai do menu (continua no rodapé e na seção Privacidade) */
+@media (max-width: 480px) {
+  .nav {
+    gap: 12px;
+  }
+  .nav__guide {
+    display: none;
+  }
+}
+@media (max-width: 370px) {
+  .folio__arrow {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folio,
+  .folio::after,
+  .folio__ring i {
+    animation: none;
+  }
+}
+
+/* ---------- Vídeo de apresentação ----------
+   Uma moldura com a mesma borda colorida do botão Portfólio (gradiente do grafo
+   girando por baixo de uma máscara), só que mais calma. O botão de assistir fica
+   por cima do poster e some quando o vídeo começa. */
+.film {
+  padding-top: clamp(40px, 6vw, 80px);
+}
+.film__frame {
+  position: relative;
+  max-width: 1040px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  background: #04121f;
+  box-shadow:
+    0 40px 120px -40px rgb(var(--graph-node-1) / 0.35),
+    0 0 0 1px rgb(var(--ink-rgb) / 0.08);
+  isolation: isolate;
+}
+.film__ring {
+  position: absolute;
+  inset: -1px;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgb(var(--graph-node-1) / 0.7),
+    rgb(var(--graph-node-2) / 0.25) 40%,
+    rgb(var(--graph-node-3) / 0.5)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.film__video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  background: #04121f;
+}
+.film__play {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 0;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at center, rgb(2 7 13 / 0.15), rgb(2 7 13 / 0.55));
+  color: #f4f9fd;
+  font: 500 17px/1 var(--font-sans);
+  cursor: pointer;
+  transition: opacity 0.4s var(--ease-out);
+}
+.film__icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #f4f9fd;
+  color: #02070d;
+  box-shadow: 0 0 0 10px rgb(244 249 253 / 0.12);
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+.film__icon svg {
+  width: 26px;
+  height: 26px;
+  margin-left: 3px;
+  fill: currentColor;
+}
+.film__time {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  opacity: 0.7;
+}
+@media (hover: hover) and (pointer: fine) {
+  .film__play:hover .film__icon {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 16px rgb(244 249 253 / 0.1);
+  }
+}
+.film__play:active .film__icon {
+  transform: scale(0.96);
+}
+.film.is-playing .film__play,
+.film__frame.is-playing .film__play {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 600px) {
+  .film__frame {
+    border-radius: 14px;
+  }
+  .film__icon {
+    width: 56px;
+    height: 56px;
+  }
+  .film__label {
+    display: none;
+  }
+}

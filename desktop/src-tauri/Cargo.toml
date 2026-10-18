@@ -1,0 +1,19 @@
+[package]
+name = "deepthinker-desktop"
+version = "0.1.0"
+description = "Deep thinker para Windows, Mac e Linux"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# Gera a chave de uso único e o segredo da instalação (números aleatórios seguros).
+uuid = { version = "1", features = ["v4"] }
+
+[profile.release]
+# Executável menor: o código Rust aqui é pequeno, então otimizar por tamanho não pesa.
+opt-level = "s"
+lto = true
+strip = true

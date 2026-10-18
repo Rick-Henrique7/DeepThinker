@@ -1,8 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Network, ArrowRight, FileUp, MessageSquare, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Network, ArrowRight, FileUp, MessageSquare, Loader2, CheckCircle2, AlertCircle, CalendarDays } from 'lucide-react';
+import { notesApi } from '../lib/notes';
 import { ThoughtInput } from '../components/ThoughtInput';
-import { api } from '../lib/api';
+import { api, type ApiError } from '../lib/api';
+import { uploadDocument, useDocumentMindmap } from '../lib/documents';
+import { DocumentMindmapStatus } from '../components/DocumentMindmapStatus';
 
 interface UploadFeedback {
   ok: boolean;
@@ -16,6 +19,13 @@ export function HomePage() {
   const [feedback, setFeedback] = useState<UploadFeedback | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
+  const mindmap = useDocumentMindmap();
+  const feedbackRef = useRef<HTMLElement | null>(null);
+
+  // O aviso fica embaixo do campo de nota: rola até ele para você ver o resultado (e o mapa mental chegando).
+  useEffect(() => {
+    if (feedback) feedbackRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [feedback]);
 
   const handleSaveThought = async (title: string, content: string) => {
     setLoading(true);
@@ -23,10 +33,27 @@ export function HomePage() {
       await api.post('/notes', { title, content });
       navigate('/grafo');
     } catch (err) {
-      alert('Erro ao salvar no servidor Laravel.');
+      // Mostra no mesmo aviso usado pelo upload, com a mensagem do backend
+      // (ex.: "Já existe uma nota com este título.").
+      const body = (err as ApiError).body as { message?: string } | undefined;
+      setFeedback({
+        ok: false,
+        title: 'Não foi possível salvar',
+        message: body?.message ?? 'Verifique se o backend está rodando e tente de novo.',
+      });
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Nota de hoje: o backend cria na primeira vez (com a pergunta do dia) e depois só devolve a mesma.
+  const openDaily = async () => {
+    try {
+      const note = await notesApi.daily();
+      navigate(`/grafo?focus=${note.id}`);
+    } catch (err) {
+      setFeedback({ ok: false, title: 'Não abri a nota de hoje', message: err instanceof Error ? err.message : 'desconhecido' });
     }
   };
 
@@ -37,20 +64,19 @@ export function HomePage() {
     if (!file) return;
     setUploadBusy(true);
     setFeedback(null);
-
-    const form = new FormData();
-    form.append('file', file);
+    mindmap.clear();
 
     try {
-      const r = await api.post<{ note: { title: string }; extracted_chars: number; created: number; reused: number }>(
-        '/documents/upload',
-        form
-      );
+      const r = await uploadDocument(file);
       setFeedback({
         ok: true,
         title: r.note.title,
-        message: `${file.name} processado (${r.extracted_chars} caracteres). Criadas: ${r.created}, reaproveitadas: ${r.reused}.`,
+        message: r.fallback
+          ? `${file.name} processado (${r.extracted_chars} caracteres). A IA não conseguiu resumir, então o texto foi guardado como veio.`
+          : `${file.name} processado (${r.extracted_chars} caracteres). Criadas: ${r.created}, reaproveitadas: ${r.reused}.`,
       });
+      // O documento já está salvo; o mapa mental vem em seguida, sem prender a tela.
+      mindmap.start(r.note.id, r.note.title);
     } catch (err) {
       setFeedback({
         ok: false,
@@ -64,18 +90,71 @@ export function HomePage() {
   };
 
   return (
-    <div className="max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto space-y-5 sm:space-y-6 lg:space-y-8">
+    // No celular: campo em cima e atalhos embaixo. No computador: atalhos numa barra lateral à esquerda
+    // e o campo de nota no centro da tela (a terceira coluna, vazia, equilibra a barra para centralizar de verdade).
+    <div className="max-w-2xl md:max-w-3xl mx-auto flex flex-col gap-5 sm:gap-6 lg:max-w-none lg:grid lg:grid-cols-[15rem_minmax(0,1fr)_15rem] xl:grid-cols-[16rem_minmax(0,1fr)_16rem] lg:gap-8 lg:items-start">
       {/* Hero */}
-      <section>
-        <ThoughtInput onSubmitThought={handleSaveThought} isLoading={loading} />
-      </section>
+      <div className="lg:col-start-2 lg:row-start-1 w-full max-w-3xl mx-auto lg:min-h-[calc(100dvh-10rem)] flex flex-col justify-center gap-5 sm:gap-6">
+        <section>
+          <ThoughtInput onSubmitThought={handleSaveThought} isLoading={loading} />
+        </section>
 
-      {/* Ações secundárias — estilo iOS list */}
-      <section className="space-y-2">
+        {/* Feedback */}
+        {feedback && (
+          <section
+            ref={feedbackRef}
+            className={`flex items-start gap-3 rounded-2xl border p-3 text-sm ${
+              feedback.ok
+                ? 'border-emerald-700/40 bg-emerald-950/30 text-emerald-300'
+                : 'border-red-700/40 bg-red-950/30 text-red-300'
+            }`}
+          >
+            {feedback.ok ? (
+              <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium">{feedback.title}</div>
+              <div className="text-xs opacity-80 mt-0.5">{feedback.message}</div>
+              {feedback.ok && mindmap.job && (
+                <DocumentMindmapStatus
+                  job={mindmap.job}
+                  onOpen={(id) => navigate(`/grafo?focus=${id}`)}
+                  onRetry={mindmap.start}
+                />
+              )}
+            </div>
+            <button
+              onClick={() => setFeedback(null)}
+              className="flex items-center justify-center min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 opacity-60 hover:opacity-100 text-lg leading-none"
+              aria-label="Fechar"
+            >
+              ×
+            </button>
+          </section>
+        )}
+      </div>
+
+      {/* Ações secundárias — barra lateral no computador */}
+      <aside className="space-y-2 lg:col-start-1 lg:row-start-1 lg:sticky lg:top-20">
         <h2 className="text-xs uppercase tracking-wider text-neutral-500 font-medium px-1">
           Atalhos
         </h2>
         <div className="rounded-2xl bg-neutral-900 border border-neutral-800 divide-y divide-neutral-800 overflow-hidden">
+          <button
+            type="button"
+            onClick={openDaily}
+            className="group w-full flex items-center gap-3 p-3 sm:p-4 text-left hover:bg-neutral-800/50 transition-colors"
+          >
+            <CalendarDays className="h-5 w-5 text-neutral-400 group-hover:text-white transition-colors flex-shrink-0" strokeWidth={1.75} />
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm sm:text-base text-white">Nota de hoje</span>
+              <span className="block text-xs text-neutral-500">Uma pergunta do dia para pensar</span>
+            </span>
+            <ArrowRight className="h-4 w-4 text-neutral-500 group-hover:text-white transition-colors flex-shrink-0" />
+          </button>
+
           <Link
             to="/grafo"
             className="group flex items-center gap-3 p-3 sm:p-4 hover:bg-neutral-800/50 transition-colors"
@@ -116,35 +195,7 @@ export function HomePage() {
             />
           </button>
         </div>
-      </section>
-
-      {/* Feedback */}
-      {feedback && (
-        <section
-          className={`flex items-start gap-3 rounded-2xl border p-3 text-sm ${
-            feedback.ok
-              ? 'border-emerald-700/40 bg-emerald-950/30 text-emerald-300'
-              : 'border-red-700/40 bg-red-950/30 text-red-300'
-          }`}
-        >
-          {feedback.ok ? (
-            <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          )}
-          <div className="flex-1 min-w-0">
-            <div className="font-medium">{feedback.title}</div>
-            <div className="text-xs opacity-80 mt-0.5">{feedback.message}</div>
-          </div>
-          <button
-            onClick={() => setFeedback(null)}
-            className="opacity-60 hover:opacity-100 text-lg leading-none"
-            aria-label="Fechar"
-          >
-            ×
-          </button>
-        </section>
-      )}
+      </aside>
     </div>
   );
 }

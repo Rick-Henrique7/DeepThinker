@@ -1,0 +1,11 @@
+# Nos testes o banco é H2 em memória: nasce vazio e some ao final.
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+
+deepthinker:
+  memory:
+    # Nos testes nada é baixado: a memória usa a busca por palavras (HashingEmbedder)
+    auto-download: false
+    model-dir: ./target/sem-modelo
+    index-on-startup: false

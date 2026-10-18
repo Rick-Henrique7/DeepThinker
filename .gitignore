@@ -1,0 +1,18 @@
+# Cópias de segurança e arquivos de trabalho que não vão para o GitHub
+site-backup-*/
+.tmp-claude/
+.playwright-mcp/
+*.bak
+*.bak-*
+*.log
+*.log.err
+
+# Bancos locais (têm as suas notas)
+*.mv.db
+*.trace.db
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,16 @@
+# Perfil de produção. Ative com a variável SPRING_PROFILES_ACTIVE=prod.
+# DATABASE_URL (jdbc:postgresql://...), DATABASE_USERNAME, DATABASE_PASSWORD
+# e FRONTEND_ORIGIN vêm das variáveis de ambiente da hospedagem.
+spring:
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+
+server:
+  error:
+    include-stacktrace: never
+
+# Em produção a chave de criptografia é obrigatória (sem valor padrão).
+deepthinker:
+  secret: ${DEEPTHINKER_SECRET}

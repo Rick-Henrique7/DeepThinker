@@ -1,0 +1,38 @@
+# Perfil do app desktop (pasta ../desktop). Quem liga este perfil é o próprio app:
+# a janela Tauri inicia este backend escondido e passa as variáveis abaixo.
+#
+#   PORT                     porta livre escolhida pelo app a cada abertura
+#   DEEPTHINKER_DATA_DIR     pasta de dados do usuário (no Windows: %APPDATA%\com.deepthinker.desktop)
+#   DEEPTHINKER_SECRET       segredo gerado na primeira abertura e guardado nessa pasta
+#   DEEPTHINKER_DESKTOP_KEY  senha de uso único que só a janela do app conhece
+#   DEEPTHINKER_WATCH_STDIN  true = desligar junto com a janela
+server:
+  # Só aceita conexões do próprio computador: ninguém na rede enxerga a API.
+  address: 127.0.0.1
+  port: ${PORT}
+  error:
+    include-stacktrace: never
+
+spring:
+  datasource:
+    # O banco vira um arquivo na pasta de dados do usuário, e não ao lado do programa
+    # (a pasta de instalação não tem permissão de escrita no Windows).
+    url: jdbc:h2:file:${DEEPTHINKER_DATA_DIR}/deepthinker;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+  main:
+    banner-mode: off
+
+deepthinker:
+  # Origens das janelas Tauri: http://tauri.localhost no Windows, tauri://localhost no Mac/Linux.
+  # localhost:5173 é para "npm run dev" do desktop, que usa o Vite.
+  frontend-origin: http://tauri.localhost,tauri://localhost,http://localhost:5173
+  secret: ${DEEPTHINKER_SECRET}
+  desktop-key: ${DEEPTHINKER_DESKTOP_KEY}
+  desktop:
+    # true = desliga quando a janela do app fechar (ver desktop/ParentWatchdog.java).
+    watch-stdin: ${DEEPTHINKER_WATCH_STDIN:false}
+  auth:
+    # Há uma pessoa só no computador: ninguém cria conta, o app entra sozinho.
+    registration-enabled: false
+    token-ttl: 30d

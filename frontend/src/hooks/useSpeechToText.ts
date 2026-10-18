@@ -38,25 +38,39 @@ declare global {
 /**
  * Hook de Speech-to-Text usando a Web Speech API nativa do navegador.
  *
- * IMPORTANTE: o retorno de `event.results` é um ArrayLike de `SpeechRecognitionResult`,
- * onde cada resultado é ele próprio um ArrayLike de alternativas. A transcrição
- * real está em `event.results[i][0].transcript` (não `event.results[i].transcript`).
+ * Como o navegador entrega o texto: enquanto voce fala, ele manda varias
+ * versoes PROVISORIAS da mesma frase ("hoje", "hoje eu", "hoje eu estava"...)
+ * e, quando voce faz uma pausa, uma versao FINAL (isFinal = true).
+ *
+ * O bug antigo era somar todas as versoes provisorias ao texto, o que gerava
+ * "hoje hoje eu hoje eu estava...". Agora:
+ * - so as frases finais vao para onFinalText (cada uma uma unica vez);
+ * - a frase provisoria fica em `interim`, para mostrar como previa na tela.
+ *
+ * A transcricao esta em `event.results[i][0].transcript`: cada resultado e uma
+ * lista de alternativas, e a 0 e a mais provavel.
  */
-export const useSpeechToText = (language: string = 'pt-BR') => {
+export const useSpeechToText = (
+  language: string = 'pt-BR',
+  onFinalText?: (text: string) => void,
+) => {
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [interim, setInterim] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [supported, setSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Indice do proximo resultado final ainda nao entregue (zera a cada start).
+  const deliveredRef = useRef(0);
+  // Guarda sempre a versao mais nova do callback sem recriar o reconhecedor.
+  const onFinalRef = useRef(onFinalText);
+  onFinalRef.current = onFinalText;
 
   useEffect(() => {
-    const SpeechRecognition =
-      (window as unknown as { SpeechRecognition?: new () => SpeechRecognitionLike })
-        .SpeechRecognition ||
-      (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecognitionLike })
-        .webkitSpeechRecognition;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setError('Navegador não suporta reconhecimento de voz nativo.');
+      setSupported(false);
+      setError('Navegador não suporta reconhecimento de voz nativo. Use o Chrome ou o Edge.');
       return;
     }
 
@@ -66,26 +80,39 @@ export const useSpeechToText = (language: string = 'pt-BR') => {
     recognition.lang = language;
 
     recognition.onresult = (event) => {
-      let currentTranscript = '';
+      let finalText = '';
+      let interimText = '';
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
-        // result é um ArrayLike de alternativas — pega a primeira
-        const alt = result && result[0];
-        if (alt && typeof alt.transcript === 'string') {
-          currentTranscript += alt.transcript;
+        const text = result?.[0]?.transcript ?? '';
+        if (result.isFinal) {
+          if (i >= deliveredRef.current) {
+            finalText += text;
+            deliveredRef.current = i + 1;
+          }
+        } else {
+          interimText += text;
         }
       }
-      setTranscript(currentTranscript);
+      if (finalText.trim()) onFinalRef.current?.(finalText.trim());
+      setInterim(interimText.trim());
     };
 
     recognition.onerror = (event) => {
-      console.error('Erro no Speech Recognition:', event.error, event.message);
-      setError(`Erro na captura: ${event.error}`);
+      // "no-speech" (silencio) e "aborted" (parou) nao sao erros de verdade
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setError(
+          event.error === 'not-allowed'
+            ? 'Permita o uso do microfone no navegador para ditar.'
+            : `Erro na captura: ${event.error}`,
+        );
+      }
       setIsListening(false);
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      setInterim('');
     };
 
     recognitionRef.current = recognition;
@@ -94,6 +121,11 @@ export const useSpeechToText = (language: string = 'pt-BR') => {
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
+      try {
+        recognition.stop();
+      } catch {
+        // ja estava parado
+      }
     };
   }, [language]);
 
@@ -101,6 +133,8 @@ export const useSpeechToText = (language: string = 'pt-BR') => {
     setError(null);
     if (recognitionRef.current && !isListening) {
       try {
+        deliveredRef.current = 0;
+        setInterim('');
         recognitionRef.current.start();
         setIsListening(true);
       } catch (err) {
@@ -110,6 +144,7 @@ export const useSpeechToText = (language: string = 'pt-BR') => {
     }
   }, [isListening]);
 
+  /** Para de ouvir. O navegador ainda entrega a ultima frase como final antes de encerrar. */
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {
       try {
@@ -121,16 +156,18 @@ export const useSpeechToText = (language: string = 'pt-BR') => {
     }
   }, [isListening]);
 
-  const resetTranscript = useCallback(() => {
-    setTranscript('');
-  }, []);
+  const toggleListening = useCallback(() => {
+    if (isListening) stopListening();
+    else startListening();
+  }, [isListening, startListening, stopListening]);
 
   return {
     isListening,
-    transcript,
+    interim,
     error,
+    supported,
     startListening,
     stopListening,
-    resetTranscript,
+    toggleListening,
   };
 };

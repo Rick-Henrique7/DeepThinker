@@ -1,9 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Brain, Scale, Sparkles, MessageSquare, Send, FileUp, X, Loader2, AlertTriangle, FileText, Trash2, ChevronDown, Wrench, FilePlus, CheckCircle2, XCircle } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Brain, Scale, Sparkles, MessageSquare, Send, FileUp, X, Loader2, AlertTriangle, FileText, Trash2, ChevronDown, Wrench, FilePlus, CheckCircle2, XCircle, Mic, MicOff, Network, Workflow } from 'lucide-react';
 import { Modal, ConfirmModal } from '../components/Modal';
-import { ChatMessage, ChatMode, LlmProvider, streamChat, estimateTokens, fetchProviders, ProviderInfo, ToolCall, ToolResult } from '../lib/chat';
+import { ChatMessage, ChatMode, LlmProvider, streamChat, estimateTokens, fetchProviders, ProviderInfo, ToolCall, ToolResult, providerLabel, MemoryNote, MEMORY_PREFIX } from '../lib/chat';
 import { api } from '../lib/api';
+import { useTypewriter } from '../hooks/useTypewriter';
+import { useSpeechToText } from '../hooks/useSpeechToText';
+import { useConfirm } from '../components/ConfirmDialog';
+import { WaterLine } from '../components/WaterLine';
+import { notesApi, notifyNotesChanged } from '../lib/notes';
+import { uploadDocument, useDocumentMindmap } from '../lib/documents';
+import { DocumentMindmapStatus } from '../components/DocumentMindmapStatus';
 
 const MODES: { id: ChatMode; label: string; description: string; icon: React.ElementType }[] = [
   { id: 'socratic', label: 'Socrático', description: 'Faz perguntas para guiar seu pensamento.', icon: Brain },
@@ -11,10 +18,18 @@ const MODES: { id: ChatMode; label: string; description: string; icon: React.Ele
   { id: 'brainstorm', label: 'Brainstorm', description: 'Gera alternativas e conexões inesperadas.', icon: Sparkles },
 ];
 
+// Sugestões do chat vazio: um clique preenche o campo (a pessoa ainda pode editar antes de enviar).
+const SUGGESTIONS: Record<ChatMode, string[]> = {
+  socratic: ['Devo largar o emprego para empreender?', 'Por que acredito nisso?', 'O que eu ganho mudando de cidade?'],
+  critic: ['Meu plano de negócio tem furos?', 'Esse argumento convence?', 'Onde estou sendo otimista demais?'],
+  brainstorm: ['Ideias para o meu próximo projeto', 'Outros usos para as minhas notas', 'Como explicar isso de outro jeito?'],
+};
+
 const STORAGE_KEY = 'deepthinker:advogado-session';
 const SESSION_ID_KEY = 'deepthinker:advogado-session-id';
 const AUTO_SUMMARIZE_DISMISS_KEY = 'deepthinker:advogado-auto-summarize-dismissed';
 const TOOLS_ENABLED_KEY = 'deepthinker:advogado-tools-enabled';
+const MEMORY_ENABLED_KEY = 'deepthinker:advogado-memory-enabled';
 const AUTO_SUMMARIZE_THRESHOLD = 8;
 
 function generateSessionId(): string {
@@ -74,8 +89,16 @@ export function AdvogadoPage() {
   const [mode, setMode] = useState<ChatMode>(initial.mode);
   const [messages, setMessages] = useState<ChatMessage[]>(initial.messages);
   const [input, setInput] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const confirm = useConfirm();
+  // Ditado: cada frase final vai para o fim do campo de mensagem.
+  const speech = useSpeechToText('pt-BR', (spoken) =>
+    setInput((prev) => (prev.trim() ? `${prev.trimEnd()} ${spoken}` : spoken)),
+  );
   const [streaming, setStreaming] = useState(false);
-  const [streamBuffer, setStreamBuffer] = useState('');
+  // Resposta em andamento, revelada aos poucos (efeito de digitacao).
+  const typer = useTypewriter();
+  const streamBuffer = typer.text;
   const [showTokenWarning, setShowTokenWarning] = useState(false);
   const [showSummaryConfirm, setShowSummaryConfirm] = useState(false);
   const [summaryBusy, setSummaryBusy] = useState(false);
@@ -90,6 +113,14 @@ export function AdvogadoPage() {
       return localStorage.getItem(TOOLS_ENABLED_KEY) === '1';
     } catch {
       return false;
+    }
+  });
+  // Memoria ligada por padrao: so desliga se o usuario escolheu desligar
+  const [memoryEnabled, setMemoryEnabledState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(MEMORY_ENABLED_KEY) !== '0';
+    } catch {
+      return true;
     }
   });
   const sessionIdRef = useRef<string>(getOrCreateSessionId());
@@ -141,11 +172,14 @@ export function AdvogadoPage() {
     fetchProviders()
       .then((info) => {
         setProviders(info);
-        // Auto-selecionar provider default se nenhum escolhido
-        if (!provider) {
+        // Usa o plugin ativo da aba IA quando nada foi escolhido aqui, ou quando o
+        // escolhido antes ficou indisponivel (ex.: sem chave). Sem isso, um "openai"
+        // salvo numa visita antiga continuava sendo usado mesmo depois de trocar para o Groq.
+        if (!provider || !info.providers[provider]?.available) {
           setProvider(info.default);
-          const models = info.providers[info.default]?.models ?? [];
-          if (models[0]) setModel(models[0]);
+          const p = info.providers[info.default];
+          const first = p?.default_model ?? p?.models?.[0];
+          if (first) setModel(first);
         }
       })
       .catch(() => {
@@ -213,13 +247,14 @@ export function AdvogadoPage() {
   const handleSend = async () => {
     const text = input.trim();
     if (!text || streaming) return;
+    speech.stopListening();
 
     const userMsg: ChatMessage = { role: 'user', content: text };
     const next = [...messages, userMsg];
     setMessages(next);
     setInput('');
     setStreaming(true);
-    setStreamBuffer('');
+    typer.reset();
 
     // Persistir msg do usuario (best-effort, fire-and-forget)
     try {
@@ -236,8 +271,13 @@ export function AdvogadoPage() {
         provider: provider ?? undefined,
         model: model ?? undefined,
         toolsEnabled,
+        memoryEnabled,
         sessionId: sessionIdRef.current,
-        onChunk: (chunk) => setStreamBuffer((buf) => buf + chunk),
+        onChunk: typer.push,
+        onMemory: (notes) => {
+          // Fica na conversa (antes da resposta) para mostrar quais notas a IA leu
+          setMessages((prev) => [...prev, { role: 'tool', content: MEMORY_PREFIX + JSON.stringify(notes) }]);
+        },
         onToolCall: (tc) => {
           setMessages((prev) => [
             ...prev,
@@ -265,6 +305,8 @@ export function AdvogadoPage() {
         },
         signal: abortRef.current.signal,
       });
+      // A IA pode terminar antes da animacao: espera o texto acabar de "digitar".
+      await typer.waitUntilDone();
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
       // Persistir resposta do Advogado
       try {
@@ -281,7 +323,7 @@ export function AdvogadoPage() {
       ]);
     } finally {
       setStreaming(false);
-      setStreamBuffer('');
+      typer.reset();
       abortRef.current = null;
     }
   };
@@ -296,14 +338,31 @@ export function AdvogadoPage() {
     });
   };
 
+  const toggleMemory = () => {
+    setMemoryEnabledState((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(MEMORY_ENABLED_KEY, next ? '1' : '0');
+      } catch {}
+      return next;
+    });
+  };
+
   const handleStop = () => {
     abortRef.current?.abort();
+    typer.finish();
     setStreaming(false);
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (messages.length === 0) return;
-    if (!confirm('Limpar toda a conversa?')) return;
+    const ok = await confirm({
+      title: 'Limpar a conversa?',
+      message: 'As mensagens desta conversa somem da tela. As notas que você já criou continuam no grafo.',
+      confirmText: 'Limpar',
+      variant: 'danger',
+    });
+    if (!ok) return;
     setMessages([]);
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -320,7 +379,10 @@ export function AdvogadoPage() {
       const result = await api.post<{ note: { title: string }; created: number; reused: number }>(
         '/notes/summarize',
         {
-          messages,
+          // Só a conversa em si: tirando resultados de ferramentas e avisos de erro (__error__).
+          messages: messages.filter(
+            (m) => (m.role === 'user' || m.role === 'assistant') && !m.content.startsWith('__')
+          ),
           mode,
           session_id: sessionIdRef.current,
           provider: provider ?? undefined,
@@ -343,6 +405,37 @@ export function AdvogadoPage() {
     }
   };
 
+  // "Transformar em diagrama": a IA desenha o debate como mapa mental e vira uma nota nova.
+  const [diagramBusy, setDiagramBusy] = useState(false);
+  const navigate = useNavigate();
+  const mindmap = useDocumentMindmap();
+  const handleDiagram = async () => {
+    const talk = messages.filter((m) => (m.role === 'user' || m.role === 'assistant') && !m.content.startsWith('__'));
+    if (talk.length === 0) return;
+    setDiagramBusy(true);
+    setFeedback(null);
+    try {
+      const text = talk.map((m) => `${m.role === 'user' ? 'EU' : 'ADVOGADO'}: ${m.content}`).join('\n\n');
+      const { mermaid } = await notesApi.diagram({ text, kind: 'mindmap' });
+      const now = new Date();
+      const stamp = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const note = await notesApi.create(
+        `Diagrama da conversa ${stamp}`,
+        `Mapa mental do debate com o Advogado do Diabo (modo ${MODES.find((m) => m.id === mode)?.label ?? mode}).\n\n\`\`\`mermaid\n${mermaid}\n\`\`\`\n`
+      );
+      notifyNotesChanged();
+      navigate(`/grafo?focus=${note.id}`);
+    } catch (err) {
+      setFeedback({
+        ok: false,
+        title: 'Erro ao desenhar o diagrama',
+        message: err instanceof Error ? err.message : 'desconhecido',
+      });
+    } finally {
+      setDiagramBusy(false);
+    }
+  };
+
   const handleAutoSummarizeDismiss = () => {
     setAutoSummarizeDismissed(true);
     try {
@@ -353,19 +446,18 @@ export function AdvogadoPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const form = new FormData();
-    form.append('file', file);
     setFeedback(null);
+    mindmap.clear();
     try {
-      const r = await api.post<{ note: { title: string }; extracted_chars: number; created: number; reused: number }>(
-        '/documents/upload',
-        form
-      );
+      const r = await uploadDocument(file);
       setFeedback({
         ok: true,
         title: 'Documento processado!',
-        message: `${file.name}: ${r.extracted_chars} chars extraídos. Criadas: ${r.created}, reaproveitadas: ${r.reused}.`,
+        message: r.fallback
+          ? `${file.name}: ${r.extracted_chars} caracteres extraídos. A IA não conseguiu resumir, então o texto foi guardado como veio.`
+          : `${file.name}: ${r.extracted_chars} caracteres extraídos. Criadas: ${r.created}, reaproveitadas: ${r.reused}.`,
       });
+      mindmap.start(r.note.id, r.note.title);
     } catch (err) {
       setFeedback({
         ok: false,
@@ -378,33 +470,49 @@ export function AdvogadoPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto">
+    <div className="flex flex-col h-[calc(100dvh-10.75rem)] sm:h-[calc(100dvh-11.75rem)] lg:h-[calc(100dvh-6rem)] baixa:h-[calc(100dvh-5.5rem)] max-w-2xl md:max-w-3xl lg:max-w-4xl mx-auto">
       {/* Topo: seletor de modo + ações */}
-      <div className="pt-3 pb-3 border-b border-neutral-900 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+      <div className="pt-3 pb-3 border-b border-neutral-900 space-y-3 baixa:flex baixa:items-center baixa:gap-2 baixa:space-y-0 baixa:pt-0 baixa:pb-2">
+        <div className="flex items-center justify-between gap-2 baixa:contents">
+          <div className="flex items-center gap-2 min-w-0 baixa:order-1">
             <MessageSquare className="h-5 w-5 text-white flex-shrink-0" strokeWidth={1.75} />
-            <h1 className="text-base sm:text-lg font-semibold text-white truncate">
+            <h1 className="text-base sm:text-lg font-semibold text-white truncate baixa:sr-only">
               Advogado do Diabo
             </h1>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0 baixa:order-3">
             {providers && provider && (
               <button
                 onClick={() => setShowModelPicker(true)}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-neutral-900 hover:bg-neutral-800 text-neutral-300 transition-colors border border-neutral-800"
+                className="flex items-center gap-1 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 justify-center px-2 py-1 rounded-full text-xs bg-neutral-900 hover:bg-neutral-800 text-neutral-300 transition-colors border border-neutral-800"
                 title="Trocar provedor/modelo"
               >
-                <span className="font-mono text-[10px] uppercase tracking-wide text-neutral-500">
-                  {provider === 'openai' ? 'OpenAI' : 'LM Studio'}
+                <span className="font-mono text-[10px] uppercase tracking-wide text-neutral-500 baixa:hidden">
+                  {providerLabel(providers, provider)}
                 </span>
-                <span className="text-white max-w-[120px] truncate">{model ?? 'auto'}</span>
+                <span className="text-white max-w-[56px] sm:max-w-[120px] baixa:max-w-[72px] truncate">{model ?? 'auto'}</span>
                 <ChevronDown className="h-3 w-3" strokeWidth={1.75} />
               </button>
             )}
             <button
+              onClick={toggleMemory}
+              className={`flex items-center gap-1 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 justify-center px-2 py-1 rounded-full text-xs transition-colors border ${
+                memoryEnabled
+                  ? 'bg-sky-500/15 border-sky-500/40 text-sky-300'
+                  : 'bg-neutral-900 border-neutral-800 text-neutral-500 hover:text-white'
+              }`}
+              title={
+                memoryEnabled
+                  ? 'Memória ligada: o Advogado lê as suas notas parecidas com a conversa (trechos vão para o provedor de IA)'
+                  : 'Memória desligada: o Advogado não lê as suas notas'
+              }
+            >
+              <Network className="h-3 w-3" strokeWidth={1.75} />
+              <span className="hidden sm:inline baixa:hidden">Memória</span>
+            </button>
+            <button
               onClick={toggleTools}
-              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors border ${
+              className={`flex items-center gap-1 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 justify-center px-2 py-1 rounded-full text-xs transition-colors border ${
                 toolsEnabled
                   ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
                   : 'bg-neutral-900 border-neutral-800 text-neutral-500 hover:text-white'
@@ -416,22 +524,22 @@ export function AdvogadoPage() {
               }
             >
               <Wrench className="h-3 w-3" strokeWidth={1.75} />
-              <span className="hidden sm:inline">{toolsEnabled ? 'Auto-nota' : 'Auto'}</span>
+              <span className="hidden sm:inline baixa:hidden">{toolsEnabled ? 'Auto-nota' : 'Auto'}</span>
             </button>
             <button
               onClick={handleClear}
               disabled={messages.length === 0}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 justify-center px-2.5 py-1 rounded-full text-xs text-neutral-500 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               title="Limpar conversa"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Limpar</span>
+              <span className="hidden sm:inline baixa:hidden">Limpar</span>
             </button>
           </div>
         </div>
 
         {/* Modo */}
-        <div className="flex bg-neutral-900 rounded-2xl p-1 gap-1">
+        <div className="flex bg-neutral-900 rounded-2xl p-1 gap-1 baixa:order-2 baixa:flex-1 baixa:min-w-0">
           {MODES.map((m) => {
             const Icon = m.icon;
             const active = mode === m.id;
@@ -439,7 +547,7 @@ export function AdvogadoPage() {
               <button
                 key={m.id}
                 onClick={() => setMode(m.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-1.5 min-h-[44px] fino:min-h-0 px-2 py-1.5 rounded-xl text-xs font-medium transition-colors ${
                   active ? 'bg-white text-black' : 'text-neutral-500 hover:text-white'
                 }`}
                 title={m.description}
@@ -452,7 +560,7 @@ export function AdvogadoPage() {
         </div>
 
         {/* Tokens */}
-        <div className="flex items-center gap-2 text-xs text-neutral-500">
+        <div className="flex items-center gap-2 text-xs text-neutral-500 baixa:hidden">
           <div className="flex-1 h-1 bg-neutral-900 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all ${
@@ -468,22 +576,52 @@ export function AdvogadoPage() {
       </div>
 
       {/* Mensagens */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto py-4 space-y-3">
-        {messages.length === 0 && (
-          <div className="text-center text-neutral-600 text-sm py-16">
-            <Brain className="w-10 h-10 mx-auto mb-3 text-neutral-800" strokeWidth={1.5} />
-            <p>Comece uma conversa.</p>
-            <p className="text-xs mt-1 text-neutral-700">
-              Modo <strong>{MODES.find((m) => m.id === mode)?.label}</strong> ativo.
-            </p>
-          </div>
+      <div ref={scrollRef} className="relative flex-1 min-h-0 overflow-y-auto py-4 space-y-3">
+        {messages.length === 0 && !streaming && (
+          <>
+            {/* Água calma só com o chat vazio; some quando a conversa começa */}
+            <WaterLine level={0.72} intensity={0.6} opacity={0.75} fadeEdges />
+            <div className="relative text-center py-16 px-4">
+              <p className="font-serif text-2xl sm:text-[26px] leading-tight text-neutral-100">
+                Qual ideia você quer pôr à prova?
+              </p>
+              <p className="text-xs mt-1.5 text-neutral-500">
+                Modo <strong>{MODES.find((m) => m.id === mode)?.label}</strong>: {MODES.find((m) => m.id === mode)?.description}
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS[mode].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setInput(s);
+                      textareaRef.current?.focus();
+                    }}
+                    className="min-h-[44px] fino:min-h-0 rounded-full border border-accent/20 bg-accent/10 px-3.5 py-2 text-xs text-neutral-100 transition hover:bg-accent/15 active:scale-[0.97]"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
         {messages.map((m, i) => {
           const isUser = m.role === 'user';
           const isError = m.content.startsWith('__error__');
           const isToolCall = m.content.startsWith('__tool_call__');
           const isToolResult = m.content.startsWith('__tool_result__');
-          const isLastAssistant = !isUser && i === messages.length - 1 && streaming;
+          if (m.content.startsWith(MEMORY_PREFIX)) {
+            let notes: MemoryNote[] = [];
+            try {
+              notes = JSON.parse(m.content.slice(MEMORY_PREFIX.length));
+            } catch {}
+            return (
+              <div key={i} className="flex justify-start">
+                <MemoryCard notes={notes} />
+              </div>
+            );
+          }
           let display = m.content;
           if (isError) display = display.replace(/^__error__/, '');
           if (isToolCall) {
@@ -513,11 +651,20 @@ export function AdvogadoPage() {
                     : 'bg-neutral-900 text-white border border-neutral-800'
                 }`}
               >
-                {isLastAssistant ? streamBuffer || '...' : display}
+                {display}
               </div>
             </div>
           );
         })}
+        {/* Resposta chegando: o balao cresce conforme o texto e "digitado" */}
+        {streaming && (
+          <div className="flex justify-start">
+            <div className="max-w-[88%] sm:max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap bg-neutral-900 text-white border border-neutral-800">
+              {streamBuffer || <span className="text-neutral-500">Pensando...</span>}
+              <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-neutral-400 animate-pulse" aria-hidden="true" />
+            </div>
+          </div>
+        )}
       </div>
 
       {feedback && (
@@ -531,10 +678,17 @@ export function AdvogadoPage() {
           <div className="flex-1 min-w-0">
             <div className="font-medium">{feedback.title}</div>
             <div className="text-xs opacity-80 mt-0.5">{feedback.message}</div>
+            {feedback.ok && mindmap.job && (
+              <DocumentMindmapStatus
+                job={mindmap.job}
+                onOpen={(id) => navigate(`/grafo?focus=${id}`)}
+                onRetry={mindmap.start}
+              />
+            )}
           </div>
           <button
             onClick={() => setFeedback(null)}
-            className="opacity-60 hover:opacity-100 text-lg leading-none"
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] fino:min-h-0 fino:min-w-0 opacity-60 hover:opacity-100 text-lg leading-none"
             aria-label="Fechar"
           >
             ×
@@ -571,32 +725,67 @@ export function AdvogadoPage() {
       )}
 
       {/* Rodapé */}
-      <div className="border-t border-neutral-900 bg-black/95 py-3 space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium cursor-pointer transition-colors">
+      <div className="border-t border-neutral-900 bg-black/95 py-3 space-y-2 baixa:flex baixa:items-end baixa:gap-2 baixa:space-y-0 baixa:py-2">
+        {/* No celular os botões ficam numa linha só (rola para o lado se não couber): duas linhas
+            de botões de 44px empurrariam o campo de mensagem para baixo do menu. */}
+        <div className="flex items-center gap-2 overflow-x-auto sm:flex-wrap [scrollbar-width:none] baixa:flex-none baixa:flex-nowrap">
+          <label title="Enviar PDF/TXT" className="flex items-center gap-1.5 min-h-[44px] fino:min-h-0 px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium cursor-pointer transition-colors">
             <FileUp className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">PDF/TXT</span>
+            <span className="hidden sm:inline baixa:hidden">PDF/TXT</span>
             <span className="sm:hidden">PDF</span>
             <input type="file" accept=".pdf,.txt,.md" onChange={handleUpload} className="hidden" />
           </label>
           <button
             onClick={() => setShowSummaryConfirm(true)}
             disabled={messages.length === 0 || summaryBusy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 min-h-[44px] fino:min-h-0 px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title="Gerar resumo e linkar ao grafo"
           >
             <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Criar Resumo
+            <span className="whitespace-nowrap baixa:hidden">Criar Resumo</span>
+          </button>
+          <button
+            onClick={handleDiagram}
+            disabled={messages.length === 0 || diagramBusy}
+            className="flex items-center gap-1.5 min-h-[44px] fino:min-h-0 px-3 py-1.5 rounded-full bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Desenhar a conversa como mapa mental e salvar como nota"
+          >
+            {diagramBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Workflow className="w-3.5 h-3.5" strokeWidth={1.75} />}
+            <span className="baixa:hidden">Diagrama</span>
           </button>
           {messages.length > 0 && (
-            <span className="text-xs text-neutral-600 ml-auto">
+            <span className="text-xs text-neutral-600 ml-auto baixa:hidden">
               {messages.filter((m) => m.role === 'user').length} msgs
             </span>
           )}
         </div>
 
-        <div className="flex items-end gap-2">
+        {(speech.isListening || speech.error) && (
+          <p
+            className={`px-2 pb-1.5 text-xs ${speech.error ? 'text-amber-400' : 'text-neutral-500 italic'}`}
+            aria-live="polite"
+          >
+            {speech.error ?? (speech.interim || 'Ouvindo...')}
+          </p>
+        )}
+        <div className="flex items-end gap-2 baixa:flex-1 baixa:min-w-0">
+          {speech.supported && (
+            <button
+              type="button"
+              onClick={speech.toggleListening}
+              title={speech.isListening ? 'Parar de ditar' : 'Ditar'}
+              aria-label={speech.isListening ? 'Parar de ditar' : 'Ditar'}
+              className={`flex items-center justify-center w-11 h-11 fino:w-10 fino:h-10 rounded-full transition-colors flex-shrink-0 ${
+                speech.isListening
+                  ? 'bg-red-500 text-white hover:bg-red-400'
+                  : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
+              }`}
+            >
+              {speech.isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" strokeWidth={1.75} />}
+            </button>
+          )}
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -618,7 +807,7 @@ export function AdvogadoPage() {
           {streaming ? (
             <button
               onClick={handleStop}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-red-500 hover:bg-red-400 text-white transition-colors flex-shrink-0"
+              className="flex items-center justify-center w-11 h-11 fino:w-10 fino:h-10 rounded-full bg-red-500 hover:bg-red-400 text-white transition-colors flex-shrink-0"
               aria-label="Parar"
             >
               <X className="w-4 h-4" />
@@ -627,7 +816,7 @@ export function AdvogadoPage() {
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-white text-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              className="flex items-center justify-center w-11 h-11 fino:w-10 fino:h-10 rounded-full bg-white text-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex-shrink-0"
               aria-label="Enviar"
             >
               <Send className="w-4 h-4" />
@@ -699,16 +888,23 @@ interface ModelPickerModalProps {
   onClose: () => void;
 }
 
+/** Modelos sugeridos + o modelo configurado na aba IA (que pode nao estar na lista). */
+function modelOptions(info: ProviderInfo['providers'][string]): string[] {
+  const list = [...info.models];
+  if (info.default_model && !list.includes(info.default_model)) list.unshift(info.default_model);
+  return list;
+}
+
 function ModelPickerModal({ open, providers, currentProvider, currentModel, onSelect, onClose }: ModelPickerModalProps) {
   if (!open || !providers) return null;
-  const entries = (['lmstudio', 'openai'] as LlmProvider[]).filter((p) => providers.providers[p]?.available);
+  const entries = Object.keys(providers.providers).filter((p) => providers.providers[p]?.available);
 
   return (
     <Modal open={open} onClose={onClose} title="Escolher provedor e modelo" size="md">
       <div className="space-y-3">
         {entries.length === 0 && (
           <p className="text-sm text-neutral-400 text-center py-4">
-            Nenhum provedor disponível. Configure OPENAI_API_KEY no .env ou inicie o LM Studio.
+            Nenhum plugin de IA configurado. Escolha um e cole a API key na aba IA.
           </p>
         )}
         {entries.map((p) => {
@@ -718,7 +914,7 @@ function ModelPickerModal({ open, providers, currentProvider, currentModel, onSe
             <div key={p} className="rounded-xl bg-neutral-900 border border-neutral-800 p-3">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold text-white">
-                  {p === 'openai' ? 'OpenAI (cloud)' : 'LM Studio (local)'}
+                  {providerLabel(providers, p)}
                 </h4>
                 {isCurrent && (
                   <span className="text-[10px] uppercase tracking-wide text-emerald-400">
@@ -727,7 +923,7 @@ function ModelPickerModal({ open, providers, currentProvider, currentModel, onSe
                 )}
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                {info.models.map((m) => {
+                {modelOptions(info).map((m) => {
                   const selected = p === currentProvider && m === currentModel;
                   return (
                     <button
@@ -754,6 +950,37 @@ function ModelPickerModal({ open, providers, currentProvider, currentModel, onSe
 }
 
 export default AdvogadoPage;
+
+/** "Notas usadas": o que a memoria entregou para a IA antes desta resposta. */
+function MemoryCard({ notes }: { notes: MemoryNote[] }) {
+  if (notes.length === 0) return null;
+  return (
+    <div className="max-w-[88%] sm:max-w-[80%] rounded-2xl border border-sky-500/30 bg-sky-950/20 px-4 py-2.5 text-xs text-sky-200">
+      <div className="flex items-center gap-1.5 font-medium">
+        <Network className="h-3.5 w-3.5" strokeWidth={1.75} />
+        Notas que o Advogado leu
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {notes.map((n) => (
+          <a
+            key={n.id}
+            href={`/grafo?focus=${n.id}`}
+            className={`rounded-full border px-2.5 py-0.5 transition-colors hover:bg-sky-900/40 ${
+              n.reason === 'linked' ? 'border-sky-500/20 text-sky-300/70' : 'border-sky-500/40 text-sky-100'
+            }`}
+            title={
+              n.reason === 'linked'
+                ? `Ligada a [[${n.via ?? '?'}]] no grafo`
+                : `Parecida com a conversa (similaridade ${Math.round(n.score * 100)}%)`
+            }
+          >
+            {n.title}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function ToolCallCard({ tc }: { tc: ToolCall }) {
   let parsed: Record<string, unknown> = {};

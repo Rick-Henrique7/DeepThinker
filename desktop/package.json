@@ -1,0 +1,16 @@
+{
+  "name": "deepthinker-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "frontend": "npm --prefix ../frontend run build",
+    "backend": "node scripts/build-backend.mjs",
+    "dev": "tauri dev",
+    "build": "npm run frontend && npm run backend && tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  }
+}
