@@ -9,6 +9,11 @@
 Escreva notas, ligue ideias com `[[colchetes]]`, organize em grafo, quadro ou canvas, grife PDFs
 e converse com um Advogado do Diabo que usa as suas próprias notas como memória.
 
+<a href="https://deepthinker-app.vercel.app"><img src="https://img.shields.io/badge/Ver_o_site-deepthinker--app.vercel.app-8fb4ff?style=for-the-badge&logo=vercel&logoColor=white" alt="Ver o site: deepthinker-app.vercel.app" height="40" /></a>
+<a href="https://github.com/Rick-Henrique7/DeepThinker/releases/latest"><img src="https://img.shields.io/badge/Baixar_para_Windows-instalador-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Baixar para Windows" height="40" /></a>
+
+### 🌐 [deepthinker-app.vercel.app](https://deepthinker-app.vercel.app)
+
 [![CI](https://github.com/Rick-Henrique7/DeepThinker/actions/workflows/ci.yml/badge.svg)](https://github.com/Rick-Henrique7/DeepThinker/actions/workflows/ci.yml)
 [![Versão](https://img.shields.io/github/v/release/Rick-Henrique7/DeepThinker?label=vers%C3%A3o&color=8fb4ff)](https://github.com/Rick-Henrique7/DeepThinker/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Rick-Henrique7/DeepThinker/total?label=downloads&color=8fb4ff)](https://github.com/Rick-Henrique7/DeepThinker/releases)
@@ -23,13 +28,14 @@ e converse com um Advogado do Diabo que usa as suas próprias notas como memóri
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pronto-4169E1?logo=postgresql&logoColor=white)](backend-java)
 [![MCP](https://img.shields.io/badge/MCP-16_ferramentas-000000)](#servidor-mcp)
 
+[**Site**](https://deepthinker-app.vercel.app) ·
 [**Baixar para Windows**](https://github.com/Rick-Henrique7/DeepThinker/releases/latest) ·
 [Ver o vídeo](site/public/video/deepthinker-1080.mp4) ·
 [Como rodar](#como-rodar) ·
 [Arquitetura](#arquitetura) ·
 [Portfólio do criador](https://henrique-santos-portfolio.vercel.app/)
 
-<a href="site/public/video/deepthinker-1080.mp4">
+<a href="https://deepthinker-app.vercel.app">
   <img src="docs/imagens/capa.jpg" alt="Deep thinker: grafo de notas dentro de um notebook, com o texto Escreva. Tudo se conecta." width="100%" />
 </a>
 
@@ -55,7 +61,8 @@ sistema de plugins, três temas (Abismo, Glaciar, Grafite) e layout pensado do c
 | Plataforma | Como |
 |---|---|
 | **Windows 10/11** | Baixe o arquivo terminado em `-setup.exe` na [última versão](https://github.com/Rick-Henrique7/DeepThinker/releases/latest) e abra. Não precisa instalar Java: ele já vem dentro do app. |
-| **Navegador** | Rode localmente (abaixo) ou use a versão online quando estiver publicada. |
+| **Site** | Conheça o projeto, veja o vídeo e baixe em [deepthinker-app.vercel.app](https://deepthinker-app.vercel.app). |
+| **Navegador** | Rode o app localmente (veja [Como rodar](#como-rodar)). |
 
 > O instalador ainda não tem assinatura digital, então o Windows pode mostrar "O Windows protegeu o computador".
 > Clique em **Mais informações** e depois em **Executar assim mesmo**.
@@ -184,7 +191,7 @@ O CI roda os testes do backend e o build do frontend a cada push.
 
 ## Autor
 
-Feito por **Henrique Santos (Rick)**. [Portfólio](https://henrique-santos-portfolio.vercel.app/) · [GitHub](https://github.com/Rick-Henrique7)
+Feito por **Henrique Santos (Rick)**. [Site do projeto](https://deepthinker-app.vercel.app) · [Portfólio](https://henrique-santos-portfolio.vercel.app/) · [GitHub](https://github.com/Rick-Henrique7)
 
 Sugestões e issues são bem-vindas.
 
